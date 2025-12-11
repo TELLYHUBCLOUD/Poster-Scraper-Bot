@@ -26,7 +26,7 @@ class Config:
     PING_URL = os.environ.get("PING_URL", "")
     PING_TIME = int(os.environ.get("PING_TIME", 300))
 
-    PUBLIC_MODE = os.environ.get("PUBLIC_MODE", "True").lower() == "true"
+    PUBLIC_MODE = os.environ.get("PUBLIC_MODE", "False").lower() == "true"
     TIMEZONE = os.environ.get("TIMEZONE", "Asia/Kolkata")
     
     # TMDB Token is optional bot will use third party proxy (https://tmdbapi.the-zake.workers.dev) if u don't want to set TMDB token 
