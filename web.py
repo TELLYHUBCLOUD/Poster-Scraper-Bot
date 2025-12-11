@@ -7,7 +7,7 @@ async def _start_web():
 
     @r.get("/", allow_head=True)
     async def _root(req):
-        return web.json_response({"status": "running", "bot": "EchoBot"})
+        return web.json_response({"status": "running", "bot": "tellycloudbots"})
     
     @r.get("/health", allow_head=True)
     async def _health(req):

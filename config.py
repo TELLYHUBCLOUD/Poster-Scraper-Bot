@@ -26,14 +26,14 @@ class Config:
     PING_URL = os.environ.get("PING_URL", "")
     PING_TIME = int(os.environ.get("PING_TIME", 300))
 
-    PUBLIC_MODE = os.environ.get("PUBLIC_MODE", "True").lower() == "true"
+    PUBLIC_MODE = os.environ.get("PUBLIC_MODE", "False").lower() == "true"
     TIMEZONE = os.environ.get("TIMEZONE", "Asia/Kolkata")
     
     # TMDB Token is optional bot will use third party proxy (https://tmdbapi.the-zake.workers.dev) if u don't want to set TMDB token 
     TMDB_ACCESS_TOKEN = os.environ.get("TMDB_ACCESS_TOKEN", "")
     
-    UPSTREAM_REPO = os.environ.get("UPSTREAM_REPO", "https://github.com/XalFH/Poster-Scraper-Bot")
-    UPSTREAM_BRANCH = os.environ.get("UPSTREAM_BRANCH", "main")
+    UPSTREAM_REPO = os.environ.get("UPSTREAM_REPO", "https://github.com/TELLYHUBCLOUD/Poster-Scraper-Bot")
+    UPSTREAM_BRANCH = os.environ.get("UPSTREAM_BRANCH", "update")
 
     OTT_TEMPLATE = """
 <b>📺 Source:</b> {source}
@@ -109,7 +109,7 @@ class Config:
 <b>✺ Original URL:</b>
 <code>{original_url}</code>
 
-<blockquote>Bot By ➤ @NxTalks</blockquote>
+<blockquote>Bot By ➤ @tellycloudbots </blockquote>
 """.strip()
 
     POSER_TEMPLATE = """
@@ -127,5 +127,5 @@ class Config:
 {posters}
 </blockquote>
 
-<blockquote>Bot By ➤ @NxTalks</blockquote>
+<blockquote>Bot By ➤ @tellycloudbots</blockquote>
 """.strip()

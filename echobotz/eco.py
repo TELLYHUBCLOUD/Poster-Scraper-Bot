@@ -2,9 +2,9 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 class echo(object):
     ABC = """<b><u>POSTER SCRAPPER BOT</u></b>
-
+<blockquote expandable>
 <b>This bot scrapes posters from various OTT platforms and bypasses direct links from cloud sites.</b>
-
+</blockquote>
 <b>✺ Commands</b>
 <blockquote expandable>
 /poster - Scrape any movie/show poster
@@ -34,19 +34,24 @@ class echo(object):
 /facebook - Facebook thumbnail
 /tiktok - TikTok thumbnail
 </blockquote>
-
+<blockquote expandable>
 <b>Examples</b>
 <code>/poster Avatar</code>
 <code>/poster Avatar 2022</code>
 <code>/poster Avatar: The Way of Water</code>
-
+</blockquote>
+<blockquote expandable>
 <b>NOTE:</b> Bot can filter results by keywords and release year.
+</blockquote>
+<blockquote expandable>
+<b>Bot By</b> @tellycloudbots   
+</blockquote>
 """
     IMG = "https://i.ibb.co/ymD61smt/photo-2025-12-10-13-50-26-7582226305333067796.jpg"
     EFCT = 5104841245755180586 # 🔥 Fire Effect Animation, not using bcz working only in bot pm
     ST_BTN = "Repo"
-    REPO = "https://github.com/XalFH/Poster-Scraper-Bot"
+    REPO = "https://t.me/tellycloudbots"
     UP_BTN = "Updates"
-    UPDTE = "https://t.me/EchoBotz"
+    UPDTE = "https://t.me/tellycloudbots"
     SP_BTN = "Support Group"
-    SP_GR = "https://t.me/NxTalks"
+    SP_GR = "https://t.me/tellybypassgrp"

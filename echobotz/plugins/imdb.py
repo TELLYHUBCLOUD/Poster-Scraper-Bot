@@ -208,6 +208,7 @@ def _get_poster(query, bulk=False, id=False, file=None):
         "url": getattr(movie, "url", "N/A") or "N/A",
         "url_cast": f"https://www.imdb.com/title/tt{movieid}/fullcredits#cast",
         "url_releaseinfo": f"https://www.imdb.com/title/tt{movieid}/releaseinfo",
+        "PlayOnline": f"https://autoembed.co/movie/tmdb/{movieid}/",
     }
 
 

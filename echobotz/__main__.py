@@ -32,7 +32,7 @@ def main():
     EchoBot.set_bot_commands(_get_bot_commands())
     LOGGER.info("Bot Cmds Set Successfully")
     me = EchoBot.get_me()
-    LOGGER.info(f"Echo Bot Started as: @{me.username}")
+    LOGGER.info(f"Bot Started as: @{me.username}")
 
     if os.path.isfile(".restartmsg"):
         try:

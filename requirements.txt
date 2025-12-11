@@ -1,0 +1,10 @@
+pyrogram
+tgcrypto
+motor
+aiohttp
+cloudscraper
+imdbinfo
+pycountry
+python-dotenv
+pytz
+dnspython

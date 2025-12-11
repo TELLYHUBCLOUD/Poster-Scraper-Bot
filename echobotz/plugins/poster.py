@@ -70,7 +70,7 @@ async def _poster_cmd(client, message):
 
         body = "\n".join(header_lines)
         posters_block = "<b>⧉ Posters:</b>\n" + "\n".join(poster_lines)
-        credit = "<blockquote>Bot By ➤ @NxTalks</blockquote>"
+        credit = "<blockquote>Bot By ➤ @tellycloudbots</blockquote>"
 
         text = f"{body}\n\n{posters_block}\n\n{credit}"
 

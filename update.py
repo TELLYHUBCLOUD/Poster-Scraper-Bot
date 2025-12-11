@@ -33,7 +33,7 @@ if not BOT_TOKEN or not API_ID or not API_HASH:
     exit(1)
 
 UPSTREAM_REPO = config_file.get("UPSTREAM_REPO", "").strip()
-UPSTREAM_BRANCH = config_file.get("UPSTREAM_BRANCH", "main").strip()
+UPSTREAM_BRANCH = config_file.get("UPSTREAM_BRANCH", "update").strip()
 
 def update_repo():
     if not UPSTREAM_REPO:
