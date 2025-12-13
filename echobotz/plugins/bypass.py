@@ -86,7 +86,8 @@ async def _bypass_cmd(client, message):
             
             for i, (orig_url, res) in enumerate(zip(target_urls, results), 1):
                 lines.append(f"<b>Link {i}</b>")
-                lines.append(f"Original Link: {orig_url}")
+                lines.append(f"<a href=\"{orig_url}\">Original Link</a>")
+              #  lines.append(f"Original Link: {orig_url}")
                 
                 bypass_url = None
                 if isinstance(res, dict):
@@ -99,7 +100,7 @@ async def _bypass_cmd(client, message):
                     bypass_url = res
                 
                 if bypass_url:
-                    lines.append(f"<a href=\"{bypass_url}\">Click Here</a>")
+                    lines.append(f"<a href=\"{bypass_url}\">    \n Download Link</a>")
                     success_count += 1
                 else:
                     lines.append("<i>Failed to bypass</i>")
@@ -131,6 +132,28 @@ async def _bypass_cmd(client, message):
                 wait_msg,
                 f"<b>Error:</b> <code>{err}</code>",
             )
+
+        # NEW: Handle Multi-Result Response (e.g. VegaMovies returning list of qualities)
+        if isinstance(info, list):
+            # Format similar to bulk, but maybe more detailed with Titles
+            lines = []
+            for i, item in enumerate(info, 1):
+                 # Item is a normalized dict from _bp_norm
+                 title = item.get("title", f"Result {i}")
+                 size = item.get("filesize", "N/A")
+                 links = item.get("links", {})
+                 
+                 lines.append(f"<b>{i}. {title}</b> [{size}]")
+                 for lbl, url in links.items():
+                     lines.append(f"<a href=\"{url}\">{lbl}</a>")
+                 lines.append("")
+                 
+            text = f"<b>Found {len(info)} Results:</b>\n\n" + "\n".join(lines)
+            if len(text) > 4096:
+                text = text[:4000] + "\n... (truncated)"
+            
+            await edit_message(wait_msg, text)
+            return
 
         service = _sexy(info.get("service"))
         title = info.get("title")

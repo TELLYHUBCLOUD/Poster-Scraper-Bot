@@ -19,15 +19,36 @@ _BYPASS_CMD_TO_SERVICE = {
     "tb": "terabox",
     "bypass": "bypass",
     "bp": "bypass",
+    "vega": "custom_vega",
+    "vg": "custom_vega",
+    "nexdrive": "custom_nexdrive",
+    "nd": "custom_nexdrive",
+    "pixelcdn": "custom_pixelcdn",
+    "pc": "custom_pixelcdn",
+    "vcloud": "custom_vcloud",
+    "vc": "custom_vcloud",
+    "hblinks": "custom_hblinks",
+    "hb": "custom_hblinks",
+    "gdrex": "custom_gdrex",
+    "gr": "custom_gdrex",
+    "extraflix": "custom_extraflix",
+    "ef": "custom_extraflix",
 }
 _BYPASS_ENDPOINTS = {
-    "gdflix": "https://hgbots.vercel.app/bypaas/gd.php?url=",
-    "hubcloud": "https://hgbots.vercel.app/bypaas/hubcloud.php?url=",
-    "hubdrive": "https://hgbots.vercel.app/bypaas/hubdrive.php?url=",  
+    "gdflix": "https://pbx1botapi.vercel.app/api/gdflix?url=",
+    "hubcloud": "https://pbx1botapi.vercel.app/api/hubcloud?url=",
+    "hubdrive": "https://pbx1botapi.vercel.app/api/hubdrive?url=", 
     "transfer_it": "https://transfer-it-henna.vercel.app/post",
     "terabox": "https://true-link-vercel-api.vercel.app/api/terabox/api?url=",
     "bypass": "https://true-link-vercel-api.vercel.app/api/bypass?url=",
     "bypass_bulk": "https://true-link-vercel-api.vercel.app/api/bypass-bulk",
+    "custom_vega": "https://pbx1botsapi2.vercel.app/api/vega?url=",
+    "custom_nexdrive": "https://pbx1botsapi2.vercel.app/api/nexdrive?url=",
+    "custom_pixelcdn": "https://pbx1botapi.vercel.app/api/pixelcdn?url=",
+    "custom_vcloud": "https://pbx1botapi.vercel.app/api/vcloud?url=",
+    "custom_hblinks": "https://pbx1botsapi2.vercel.app/api/hblinks?url=",
+    "custom_gdrex": "https://pbx1botapi.vercel.app/api/gdrex?url=",
+    "custom_extraflix": "https://pbx1botapi.vercel.app/api/extraflix?url=",
 }
 """
 Credits:
@@ -91,11 +112,18 @@ def _bp_links(links):
 
 
 def _bp_norm(data, service):
+    # Handle list of results (Vega, ExtraFlix)
+    if isinstance(data, dict) and "results" in data and isinstance(data["results"], list):
+        norm_list = []
+        for item in data["results"]:
+             norm_list.append(_bp_norm(item, service))
+        return norm_list
+        
     root = data
     if isinstance(data, dict) and isinstance(data.get("final"), dict):
         root = data["final"]
-    title = root.get("title") or data.get("title") or "N/A"
-    filesize = root.get("filesize") or data.get("filesize") or "N/A"
+    title = root.get("title") or root.get("file_name") or data.get("title") or "N/A"
+    filesize = root.get("filesize") or root.get("file_size") or data.get("filesize") or "N/A"
     file_format = (
         root.get("format")
         or root.get("file_format")
@@ -114,7 +142,22 @@ def _bp_norm(data, service):
         if filesize == "N/A":
             filesize = meta.get("size") or meta.get("filesize") or "N/A"
 
-    if isinstance(raw_links, dict):
+    # Handle single logic url (HBLinks)
+    if not raw_links and root.get("url") and isinstance(root["url"], str):
+        links_clean["Direct Link"] = root["url"]
+
+    # Handle 'links' as list of dicts (NexDrive, PixelCDN, HubCloud, GDFlix, etc)
+    if isinstance(raw_links, list):
+         for item in raw_links:
+             if isinstance(item, dict):
+                 # Try to find label and url
+                 # Common keys: type, tag, text | url, link
+                 lbl = item.get("type") or item.get("tag") or item.get("text") or item.get("quality") or "Link"
+                 url = item.get("url") or item.get("link")
+                 if url:
+                      links_clean[str(lbl)] = url
+
+    elif isinstance(raw_links, dict):
         for k, v in raw_links.items():
             url = None
             lbl = _bp_label_from_key(k)
