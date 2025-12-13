@@ -33,6 +33,10 @@ _BYPASS_CMD_TO_SERVICE = {
     "gr": "custom_gdrex",
     "extraflix": "custom_extraflix",
     "ef": "custom_extraflix",
+    "neo": "custom_neo",
+    "no": "custom_neo",
+    "gofile": "custom_gofile",
+    "go": "custom_gofile",
 }
 _BYPASS_ENDPOINTS = {
     "gdflix": "https://pbx1botapi.vercel.app/api/gdflix?url=",
@@ -49,6 +53,8 @@ _BYPASS_ENDPOINTS = {
     "custom_hblinks": "https://pbx1botsapi2.vercel.app/api/hblinks?url=",
     "custom_gdrex": "https://pbx1botapi.vercel.app/api/gdrex?url=",
     "custom_extraflix": "https://pbx1botapi.vercel.app/api/extraflix?url=",
+    "custom_neo": "https://pbx1botapi.vercel.app/api/neo?url=",
+    "custom_gofile": "https://gofile.dd-bypassed.workers.dev/api/", 
 }
 """
 Credits:
@@ -268,7 +274,21 @@ async def _bp_info(cmd_name, target_url):
                     target_url = target_url.replace(dom, "terabox.com")
                     break
         
-        api_url = f"{base}{quote_plus(target_url)}"
+        # Gofile Custom Logic: Extract ID and append to base
+        if service == "custom_gofile":
+            # URL: https://gofile.io/d/B3QPQb -> ID: B3QPQb
+            # API: base + ID
+            try:
+                if "/d/" in target_url:
+                    gofile_id = target_url.split("/d/")[-1].split("?")[0].strip()
+                    api_url = f"{base}{gofile_id}"
+                else:
+                    return None, "Invalid Gofile URL format. Expected /d/ID"
+            except Exception:
+                return None, "Failed to extract Gofile ID."
+        else:
+            api_url = f"{base}{quote_plus(target_url)}"
+
     LOGGER.info(f"Bypassing via [{service}] -> {api_url}")
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
     try:

@@ -1,6 +1,29 @@
+from pyrogram.enums import ChatType
 import uuid
 from pyrogram.handlers import CallbackQueryHandler
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+from .. import LOGGER
+from ..helper.ott import _extract_url_from_message
+from ..helper.bypsr import _bp_info, _bp_links
+from ..helper.utils.msg_util import send_message, edit_message
+from ..helper.utils.xtra import _task
+from config import Config
+
+from echobotz.eco import echo
+from ..helper.utils.btns import EchoButtons
+
+def _sexy(name):
+    if not name:
+        return None
+    name = str(name).lower()
+    mapping = {
+        "gdflix": "GDFlix",
+        "hubcloud": "HubCloud",
+        "hubdrive": "HubDrive",
+        "transfer_it": "Transfer.it",
+    }
+    return mapping.get(name, name.title())
 
 _BP_CACHE = {}
 
