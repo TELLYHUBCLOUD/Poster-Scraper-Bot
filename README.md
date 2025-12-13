@@ -18,6 +18,7 @@ Powerful telegram bot that scrape Posters from multiple OTT platforms & Bypass d
 - ExtraLink
 - LuxDrive
 - Nexdrive
+- Hblinks 
 
 </details>
 
@@ -73,6 +74,7 @@ Powerful telegram bot that scrape Posters from multiple OTT platforms & Bypass d
 /extralink - Bypass ExtraLink links to direct links
 /luxdrive - Bypass LuxDrive links to direct links
 /nexdrive - Bypass NexDrive links to direct links
+/hblinks -Bypass HBLinks to direct links
 /overlap - Overlay a logo on a poster
 /prime - Prime Video poster
 /netflix - Netflix poster
