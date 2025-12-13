@@ -42,7 +42,7 @@ async def _bp_page_cb(client, callback_query):
         original_url = data["url"]
         
         # Pagination logic
-        chunk_size = 10
+        chunk_size = 5  # Reduced to prevent ENTITIES_TOO_LONG
         items = list(links_dict.items())
         total_items = len(items)
         total_pages = (total_items + chunk_size - 1) // chunk_size
@@ -246,8 +246,8 @@ async def _bypass_cmd(client, message):
         
         links_dict = info.get("links") or {}
         
-        # Determine if we need pagination (limit > 10 links)
-        if len(links_dict) > 10:
+        # Determine if we need pagination (limit > 5 links to avoid ENTITIES_TOO_LONG)
+        if len(links_dict) > 5:
             uid = str(uuid.uuid4())
             _BP_CACHE[uid] = {
                 "header": header_block,
@@ -256,9 +256,9 @@ async def _bypass_cmd(client, message):
                 "url": target_url
             }
             
-            # Show first page
+            # Show first page (5 links max)
             items = list(links_dict.items())
-            first_chunk = dict(items[:10])
+            first_chunk = dict(items[:5])
             links_block = _bp_links(first_chunk)
             
             text = Config.BYPASS_TEMPLATE.format(
