@@ -259,6 +259,15 @@ async def _bp_info(cmd_name, target_url):
     if service == "transfer_it":
         api_url = base
     else:
+        # Fix for Terabox API 400 error on alternate domains
+        if service == "terabox":
+            # Replace common alternate domains with terabox.com
+            # The API expects https://terabox.com/s/xxxx
+            for dom in ["1024terabox.com", "teraboxapp.com", "terabox.app", "nephobox.com", "4funbox.com", "mirrobox.com", "momerybox.com", "terabox.fun"]:
+                if dom in target_url:
+                    target_url = target_url.replace(dom, "terabox.com")
+                    break
+        
         api_url = f"{base}{quote_plus(target_url)}"
     LOGGER.info(f"Bypassing via [{service}] -> {api_url}")
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
