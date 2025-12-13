@@ -3,7 +3,7 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 class echo(object):
     ABC = '''<b><u>POSTER SCRAPPER BOT</u></b>  
 
-<b> bot scrapes posters from various OTT platforms and bypasses direct links from cloud sites.</b>  
+<b>scrapes posters from various OTT platforms and bypasses direct links from cloud sites.</b>  
 
 <b>✺ Commands</b>  
 <blockquote expandable>  
