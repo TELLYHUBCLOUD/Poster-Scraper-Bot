@@ -113,6 +113,41 @@ def _extract_url_from_message(message):
     return None
 
 
+def _extract_all_urls_from_message(message):
+    urls = []
+    
+    # Check command args (e.g. /bypass url1 url2)
+    if getattr(message, "command", None) and len(message.command) > 1:
+        for arg in message.command[1:]:
+            arg = arg.strip()
+            if arg.startswith("http://") or arg.startswith("https://"):
+                urls.append(arg)
+
+    # Check reply message
+    if message.reply_to_message:
+        reply = message.reply_to_message
+        text = reply.text or reply.caption or ""
+        for part in text.split():
+            part = part.strip()
+            if part.startswith("http://") or part.startswith("https://"):
+                urls.append(part)
+
+    # Check current message text (if mixed with command or just text)
+    text = message.text or ""
+    # Avoid re-adding command args if we already processed them, but simpler to just regex or split
+    # If the command was /bypass url1, message.text is "/bypass url1"
+    for part in text.split():
+        part = part.strip()
+        # skip the command itself if it starts with /
+        if part.startswith("/"):
+            continue
+        if part.startswith("http://") or part.startswith("https://"):
+            if part not in urls: # simple dedup
+                urls.append(part)
+                
+    return urls
+
+
 def _provider_from_cmd(cmd: str):
     cmd = cmd.lower().lstrip("/")
     return _CMD_TO_PROVIDER.get(cmd)

@@ -31,9 +31,12 @@ async def _bypass_cmd(client, message):
             return
 
         cmd_name = message.command[0].lstrip("/").split("@")[0].lower()
-        target_url = _extract_url_from_message(message)
+        
+        # New: Support multiple URLs
+        from ..helper.ott import _extract_all_urls_from_message
+        target_urls = _extract_all_urls_from_message(message)
 
-        if not target_url:
+        if not target_urls:
             return await send_message(
                 message,
                 (
@@ -45,9 +48,56 @@ async def _bypass_cmd(client, message):
 
         wait_msg = await send_message(
             message,
-            f"<i>Processing:</i>\n<code>{target_url}</code>",
+            f"<i>Processing {len(target_urls)} link(s)...</i>",
         )
 
+        if len(target_urls) > 1:
+            from ..helper.bypsr import _bp_bulk_info
+            
+            # Using bulk API
+            # Ideally we only use bulk API if the command is /bypass or /bp ??
+            # But the user asked for bulk link handling generally.
+            # If the user uses specific command like /terabox with multiple links, 
+            # we should technically map each one or use bulk if supported?
+            # User specifically asked for /bypass bulk logic. 
+            # For now, if multiple links, we try bulk API if command is general bypass, 
+            # Or we can iterate if it's specific?
+            # The prompt says: "and bulk link ho to api post par work karega ... endpoint: /api/bypass-bulk"
+            # It seems this endpoint is for generic bulk bypass.
+            
+            # Let's try _bp_bulk_info for all multiple link cases.
+            
+            info, err = await _bp_bulk_info(target_urls)
+            if err:
+                return await edit_message(
+                    wait_msg,
+                    f"<b>Error:</b> <code>{err}</code>",
+                )
+            
+            # Formatting bulk response
+            # Assuming info is a list of strings (links) as per user prompt example: ["link1", "link2"]
+            lines = []
+            if isinstance(info, list):
+                for i, link in enumerate(info, 1):
+                    lines.append(f"{i}. {link}")
+            elif isinstance(info, dict):
+                 # Fallback if dictionary returned
+                 for k, v in info.items():
+                     lines.append(f"{k}: {v}")
+            else:
+                 lines.append(str(info))
+            
+            text = "<b>Bulk Bypass Results:</b>\n\n" + "\n".join(lines)
+            if len(text) > 4096:
+                text = text[:4000] + "\n... (truncated)"
+            
+            await edit_message(wait_msg, text)
+            return
+
+        # Single URL case (existing logic)
+        target_url = target_urls[0]
+        # Update wait message to show the single URL logic if needed, but it's fine.
+        
         info, err = await _bp_info(cmd_name, target_url)
         if err:
             return await edit_message(

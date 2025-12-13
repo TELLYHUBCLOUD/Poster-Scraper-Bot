@@ -15,12 +15,19 @@ _BYPASS_CMD_TO_SERVICE = {
     "hd": "hubdrive",
     "transfer_it": "transfer_it",
     "ti": "transfer_it",
+    "terabox": "terabox",
+    "tb": "terabox",
+    "bypass": "bypass",
+    "bp": "bypass",
 }
 _BYPASS_ENDPOINTS = {
     "gdflix": "https://hgbots.vercel.app/bypaas/gd.php?url=",
     "hubcloud": "https://hgbots.vercel.app/bypaas/hubcloud.php?url=",
     "hubdrive": "https://hgbots.vercel.app/bypaas/hubdrive.php?url=",  
     "transfer_it": "https://transfer-it-henna.vercel.app/post",
+    "terabox": "https://true-link-vercel-api.vercel.app/api/terabox/api?url=",
+    "bypass": "https://true-link-vercel-api.vercel.app/api/bypass?url=",
+    "bypass_bulk": "https://true-link-vercel-api.vercel.app/api/bypass-bulk",
 }
 """
 Credits:
@@ -29,6 +36,8 @@ HgBot (Harshit) for Gdflix, Hubcloud, Hubdrive
 """
 
 def _bp_srv(cmd):
+    if not cmd:
+        return None
     cmd = cmd.lower().lstrip("/")
     return _BYPASS_CMD_TO_SERVICE.get(cmd)
 
@@ -118,7 +127,34 @@ def _bp_norm(data, service):
             url = str(url).strip()
             if not url.startswith(("http://", "https://")):
                 continue
+            if not url.startswith(("http://", "https://")):
+                continue
             links_clean[lbl] = url
+    
+    # Special handling for Terabox/Bypass new API structure
+    if not links_clean and service in ["terabox", "bypass"]:
+        # Check for direct 'url' in root (bypass api)
+        if root.get("url") and isinstance(root["url"], str):
+             links_clean["Direct Link"] = root["url"]
+        
+        # Check for 'api' keys (terabox api)
+        # e.g. api1: { dl1: ..., dl2: ..., stream: ... }
+        for k, v in root.items():
+            if k.startswith("api") and isinstance(v, dict):
+                # Extract dl1, dl2, stream
+                for subk, subv in v.items():
+                    if isinstance(subv, str) and subv.startswith(("http", "https")):
+                         label = f"{k.upper()} - {subk.upper()}"
+                         links_clean[label] = subv
+        
+        # Check for 'streamapi' (terabox api)
+        if "streamapi" in root and isinstance(root["streamapi"], dict):
+             v = root["streamapi"]
+             for subk, subv in v.items():
+                    if isinstance(subv, str) and subv.startswith(("http", "https")):
+                         label = f"StreamAPI - {subk.upper()}"
+                         links_clean[label] = subv
+
     if not links_clean:
         skip = {"title", "filesize", "format", "file_format", "success", "links"}
         for k, v in root.items():
@@ -208,4 +244,33 @@ async def _bp_info(cmd_name, target_url):
     if "success" in data and not data.get("success"):
         return None, data.get("message") or "Bypass failed."
     norm = _bp_norm(data, service)
-    return norm, None 
+    return norm, None
+
+async def _bp_bulk_info(urls):
+    api_url = _BYPASS_ENDPOINTS.get("bypass_bulk")
+    if not api_url:
+        return None, "Bulk bypass endpoint not configured."
+    
+    LOGGER.info(f"Bulk bypassing {len(urls)} links via {api_url}")
+    try:
+        resp = await _sync_to_async(
+            requests.post, api_url, json={"urls": urls}, timeout=60
+        )
+    except Exception as e:
+        LOGGER.error(f"Bulk bypass error: {e}", exc_info=True)
+        return None, "Failed to reach bulk service."
+        
+    if resp.status_code != 200:
+         return None, f"Bulk service returned {resp.status_code}"
+         
+    try:
+        data = resp.json()
+    except:
+        return None, "Invalid JSON from bulk service."
+        
+    if isinstance(data, list):
+        return data, None
+    elif isinstance(data, dict):
+        return data, None
+        
+    return None, "Unexpected bulk response format."
