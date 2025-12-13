@@ -75,7 +75,6 @@ async def _bypass_cmd(client, message):
                 )
             
             # Formatting bulk response
-            # Formatting bulk response
             lines = []
             success_count = 0
             fail_count = 0
@@ -85,9 +84,13 @@ async def _bypass_cmd(client, message):
             results = info if isinstance(info, list) else [info] * len(target_urls) # Fallback
             
             for i, (orig_url, res) in enumerate(zip(target_urls, results), 1):
+                # Paginator check: specific character limit to avoid ENTITIES_TOO_LONG
+                if len("\n".join(lines)) > 3000:
+                    lines.append(f"\n<i>...and {total_count - (i-1)} more links (truncated)</i>")
+                    break
+
                 lines.append(f"<b>Link {i}</b>")
                 lines.append(f"<a href=\"{orig_url}\">Original Link</a>")
-              #  lines.append(f"Original Link: {orig_url}")
                 
                 bypass_url = None
                 if isinstance(res, dict):
@@ -100,7 +103,7 @@ async def _bypass_cmd(client, message):
                     bypass_url = res
                 
                 if bypass_url:
-                    lines.append(f"<a href=\"{bypass_url}\">    \n Download Link</a>")
+                    lines.append(f"<a href=\"{bypass_url}\">Download Link</a>")
                     success_count += 1
                 else:
                     lines.append("<i>Failed to bypass</i>")
@@ -138,6 +141,11 @@ async def _bypass_cmd(client, message):
             # Format similar to bulk, but maybe more detailed with Titles
             lines = []
             for i, item in enumerate(info, 1):
+                 # Paginator check
+                 if len("\n".join(lines)) > 3000:
+                     lines.append(f"\n<i>...and {len(info) - (i-1)} more results (truncated)</i>")
+                     break
+
                  # Item is a normalized dict from _bp_norm
                  title = item.get("title", f"Result {i}")
                  size = item.get("filesize", "N/A")
