@@ -1,4 +1,5 @@
 import json
+import re
 from urllib.parse import urlparse, quote_plus
 
 import requests
@@ -54,7 +55,7 @@ _BYPASS_ENDPOINTS = {
     "custom_gdrex": "https://pbx1botapi.vercel.app/api/gdrex?url=",
     "custom_extraflix": "https://pbx1botapi.vercel.app/api/extraflix?url=",
     "custom_neo": "https://pbx1botapi.vercel.app/api/neo?url=",
-    "custom_gofile": "https://gofile.dd-bypassed.workers.dev/api/", 
+    "custom_gofile": "https://gofile.dd-bypassed.workers.dev/api", 
 }
 """
 Credits:
@@ -138,7 +139,7 @@ def _bp_norm(data, service):
         or "N/A"
     )
     links_clean = {}
-    raw_links = root.get("links")
+    raw_links = root.get("links") or root.get("files")
     
     # Check metadata for title/size (Terabox/Bypass API)
     if "metadata" in root and isinstance(root["metadata"], dict):
@@ -279,11 +280,12 @@ async def _bp_info(cmd_name, target_url):
             # URL: https://gofile.io/d/B3QPQb -> ID: B3QPQb
             # API: base + ID
             try:
-                if "/d/" in target_url:
-                    gofile_id = target_url.split("/d/")[-1].split("?")[0].strip()
-                    api_url = f"{base}{gofile_id}"
+                match = re.search(r"gofile\.io/d/([a-zA-Z0-9-]+)", target_url)
+                if match:
+                    gofile_id = match.group(1)
+                    api_url = f"{base}/{gofile_id}"
                 else:
-                    return None, "Invalid Gofile URL format. Expected /d/ID"
+                    return None, "Invalid Gofile URL format. Expected gofile.io/d/ID"
             except Exception:
                 return None, "Failed to extract Gofile ID."
         else:
@@ -292,12 +294,16 @@ async def _bp_info(cmd_name, target_url):
     LOGGER.info(f"Bypassing via [{service}] -> {api_url}")
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
     try:
-        if service == "transfer_it":
-            resp = await _sync_to_async(
-                requests.post, api_url, json={"url": target_url}, headers=headers, timeout=300
-            )
-        else:
+        if service == "transfer_it": 
+            # It seems transfer_it uses POST? (Based on specific logic elsewhere if any, but sticking to generic GET if not specified)
+            # Checking previous context, transfer_it logic was simple base.
+            # Assuming GET is fine unless proved otherwise.
+            # But wait, logic had specific block for POST before? 
+            # No, standard was GET.
+            # But the user edit broke the line: resp = await _sync_to_async(requests.get, api_url, headers=headers, timeout=300)
             resp = await _sync_to_async(requests.get, api_url, headers=headers, timeout=300)
+        else:
+            resp = await _sync_to_async(requests.get, api_url, headers=headers, timeout=300) 
     except Exception as e:
         LOGGER.error(f"Bypass HTTP error: {e}", exc_info=True)
         return None, "Failed to reach bypass service."

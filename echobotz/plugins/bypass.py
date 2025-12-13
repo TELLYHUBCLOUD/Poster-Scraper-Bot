@@ -83,10 +83,8 @@ async def _bp_page_cb(client, callback_query):
         btns.url_button(echo.UP_BTN, echo.UPDTE)
         btns.url_button(echo.ST_BTN, echo.REPO)
         repo_btns = btns.build(2)
-        if repo_btns:
-            # repo_btns is a list of lists of buttons. Flatten or append?
-            # It's usually [[btn1, btn2]].
-            for row in repo_btns:
+        if repo_btns and hasattr(repo_btns, "inline_keyboard"):
+            for row in repo_btns.inline_keyboard:
                 buttons.append(row)
 
         await callback_query.edit_message_text(
@@ -281,8 +279,8 @@ async def _bypass_cmd(client, message):
             btns.url_button(echo.UP_BTN, echo.UPDTE)
             btns.url_button(echo.ST_BTN, echo.REPO)
             repo_btns = btns.build(2)
-            if repo_btns:
-                for row in repo_btns:
+            if repo_btns and hasattr(repo_btns, "inline_keyboard"):
+                for row in repo_btns.inline_keyboard:
                     buttons.append(row)
                     
             await edit_message(
