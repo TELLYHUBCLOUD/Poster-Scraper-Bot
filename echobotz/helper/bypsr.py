@@ -105,6 +105,15 @@ def _bp_norm(data, service):
     )
     links_clean = {}
     raw_links = root.get("links")
+    
+    # Check metadata for title/size (Terabox/Bypass API)
+    if "metadata" in root and isinstance(root["metadata"], dict):
+        meta = root["metadata"]
+        if title == "N/A":
+            title = meta.get("file_name") or meta.get("title") or "N/A"
+        if filesize == "N/A":
+            filesize = meta.get("size") or meta.get("filesize") or "N/A"
+
     if isinstance(raw_links, dict):
         for k, v in raw_links.items():
             url = None

@@ -75,11 +75,17 @@ async def _bypass_cmd(client, message):
                 )
             
             # Formatting bulk response
-            # Assuming info is a list of strings (links) as per user prompt example: ["link1", "link2"]
             lines = []
             if isinstance(info, list):
-                for i, link in enumerate(info, 1):
-                    lines.append(f"{i}. {link}")
+                for i, item in enumerate(info, 1):
+                    if isinstance(item, dict):
+                        # Extract URL from dict as requested
+                        url = item.get("url") or item.get("link") or "No Link"
+                        # Optional: Add filename if useful? User just asked for "url" update.
+                        # But standard list style usually implies just the main value.
+                        lines.append(f"{i}. {url}")
+                    else:
+                        lines.append(f"{i}. {item}")
             elif isinstance(info, dict):
                  # Fallback if dictionary returned
                  for k, v in info.items():
