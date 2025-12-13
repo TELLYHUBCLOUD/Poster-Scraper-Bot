@@ -1,15 +1,13 @@
 # ruff: noqa: E402
 
-from config import Config
-Config.load()
-
 from datetime import datetime
 from logging import Formatter
-from pytz import timezone
 from asyncio import gather
 
+from pytz import timezone
 from pyrogram import idle
 
+from config import Config
 from . import LOGGER, bot_loop
 from .core.EchoClient import EchoClient
 from .core.plugs import add_plugs
@@ -25,12 +23,10 @@ async def main():
 
     Formatter.converter = changetz
 
-    # 🔥 EXACT public bot pattern
     await gather(
         EchoClient.start_bot(),
     )
 
-    # AFTER client is started
     await EchoClient.bot.set_bot_commands(_get_bot_commands())
 
     add_plugs()
