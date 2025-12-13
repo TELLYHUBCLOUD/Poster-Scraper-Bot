@@ -75,27 +75,48 @@ async def _bypass_cmd(client, message):
                 )
             
             # Formatting bulk response
+            # Formatting bulk response
             lines = []
-            if isinstance(info, list):
-                for i, item in enumerate(info, 1):
-                    if isinstance(item, dict):
-                        # Extract URL from dict as requested
-                        url = item.get("url") or item.get("link") or "No Link"
-                        # Optional: Add filename if useful? User just asked for "url" update.
-                        # But standard list style usually implies just the main value.
-                        lines.append(f"{i}. {url}")
-                    else:
-                        lines.append(f"{i}. {item}")
-            elif isinstance(info, dict):
-                 # Fallback if dictionary returned
-                 for k, v in info.items():
-                     lines.append(f"{k}: {v}")
-            else:
-                 lines.append(str(info))
+            success_count = 0
+            fail_count = 0
+            total_count = len(target_urls)
             
-            text = "<b>Bulk Bypass Results:</b>\n\n" + "\n".join(lines)
+            # Ensure info is a list and has same length as target_urls to map correctly
+            results = info if isinstance(info, list) else [info] * len(target_urls) # Fallback
+            
+            for i, (orig_url, res) in enumerate(zip(target_urls, results), 1):
+                lines.append(f"<b>Link {i}</b>")
+                lines.append(f"Original Link: {orig_url}")
+                
+                bypass_url = None
+                if isinstance(res, dict):
+                    if res.get("success"):
+                        bypass_url = res.get("url") or res.get("link")
+                    else:
+                        # Try to find a url anyway if success is missing but url exists
+                        bypass_url = res.get("url") or res.get("link")
+                elif isinstance(res, str) and res.startswith("http"):
+                    bypass_url = res
+                
+                if bypass_url:
+                    lines.append(f"<a href=\"{bypass_url}\">Click Here</a>")
+                    success_count += 1
+                else:
+                    lines.append("<i>Failed to bypass</i>")
+                    fail_count += 1
+                
+                lines.append("") # Empty line between items
+
+            stats = [
+                f"Total Link = {total_count}",
+                f"Bypass Link = {success_count}",
+                f"Failed Link = {fail_count}"
+            ]
+            
+            text = "\n".join(lines) + "\n" + "\n".join(stats)
+            
             if len(text) > 4096:
-                text = text[:4000] + "\n... (truncated)"
+                text = text[:4000] + "\n\n... (truncated)"
             
             await edit_message(wait_msg, text)
             return

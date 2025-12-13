@@ -218,13 +218,14 @@ async def _bp_info(cmd_name, target_url):
     else:
         api_url = f"{base}{quote_plus(target_url)}"
     LOGGER.info(f"Bypassing via [{service}] -> {api_url}")
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
     try:
         if service == "transfer_it":
             resp = await _sync_to_async(
-                requests.post, api_url, json={"url": target_url}, timeout=20
+                requests.post, api_url, json={"url": target_url}, headers=headers, timeout=300
             )
         else:
-            resp = await _sync_to_async(requests.get, api_url, timeout=20)
+            resp = await _sync_to_async(requests.get, api_url, headers=headers, timeout=300)
     except Exception as e:
         LOGGER.error(f"Bypass HTTP error: {e}", exc_info=True)
         return None, "Failed to reach bypass service."
