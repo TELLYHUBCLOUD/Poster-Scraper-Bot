@@ -117,6 +117,14 @@ def add_plugs():
             & CustomFilters.authorized,
         )
     )
+
+    from ..plugins.bypass import _bp_page_cb
+    EchoBot.add_handler(
+        CallbackQueryHandler(
+            _bp_page_cb,
+            filters.regex(r"^bp_page_") & CustomFilters.authorized,
+        )
+    )
     EchoBot.add_handler(
     MessageHandler(
         _p,

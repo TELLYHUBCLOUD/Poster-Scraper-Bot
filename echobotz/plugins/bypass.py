@@ -1,27 +1,80 @@
-from pyrogram.enums import ChatType
+import uuid
+from pyrogram.handlers import CallbackQueryHandler
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from .. import LOGGER
-from ..helper.ott import _extract_url_from_message
-from ..helper.bypsr import _bp_info, _bp_links
-from ..helper.utils.msg_util import send_message, edit_message
-from ..helper.utils.xtra import _task
-from config import Config
+_BP_CACHE = {}
 
-from echobotz.eco import echo
-from ..helper.utils.btns import EchoButtons
+async def _bp_page_cb(client, callback_query):
+    try:
+        _, uid, page = callback_query.data.split("_")
+        page = int(page)
+        
+        data = _BP_CACHE.get(uid)
+        if not data:
+            return await callback_query.answer("Session expired or invalid.", show_alert=True)
+            
+        header_block = data["header"]
+        meta_block = data["meta"]
+        links_dict = data["links"]
+        original_url = data["url"]
+        
+        # Pagination logic
+        chunk_size = 10
+        items = list(links_dict.items())
+        total_items = len(items)
+        total_pages = (total_items + chunk_size - 1) // chunk_size
+        
+        if page < 1: page = 1
+        if page > total_pages: page = total_pages
+        
+        start = (page - 1) * chunk_size
+        end = start + chunk_size
+        current_chunk = dict(items[start:end])
+        
+        links_block = _bp_links(current_chunk)
+        
+        text = Config.BYPASS_TEMPLATE.format(
+            header_block=header_block,
+            meta_block=meta_block,
+            links_block=links_block,
+            original_url=original_url,
+        )
+        
+        buttons = []
+        # Nav buttons
+        nav_row = []
+        if page > 1:
+            nav_row.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"bp_page_{uid}_{page-1}"))
+        
+        nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="noop"))
+        
+        if page < total_pages:
+            nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"bp_page_{uid}_{page+1}"))
+            
+        if nav_row:
+            buttons.append(nav_row)
+            
+        # Add Close button or others?
+        # Re-add repo buttons?
+        btns = EchoButtons()
+        btns.url_button(echo.UP_BTN, echo.UPDTE)
+        btns.url_button(echo.ST_BTN, echo.REPO)
+        repo_btns = btns.build(2)
+        if repo_btns:
+            # repo_btns is a list of lists of buttons. Flatten or append?
+            # It's usually [[btn1, btn2]].
+            for row in repo_btns:
+                buttons.append(row)
 
-def _sexy(name):
-    if not name:
-        return None
-    name = str(name).lower()
-    mapping = {
-        "gdflix": "GDFlix",
-        "hubcloud": "HubCloud",
-        "hubdrive": "HubDrive",
-        "transfer_it": "Transfer.it",
-    }
-    return mapping.get(name, name.title())
+        await callback_query.edit_message_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+    except Exception as e:
+        LOGGER.error(f"bp_page_cb error: {e}", exc_info=True)
+        await callback_query.answer("Error during pagination.", show_alert=True)
 
+# Main command update
 @_task
 async def _bypass_cmd(client, message):
     try:
@@ -53,19 +106,6 @@ async def _bypass_cmd(client, message):
 
         if len(target_urls) > 1:
             from ..helper.bypsr import _bp_bulk_info
-            
-            # Using bulk API
-            # Ideally we only use bulk API if the command is /bypass or /bp ??
-            # But the user asked for bulk link handling generally.
-            # If the user uses specific command like /terabox with multiple links, 
-            # we should technically map each one or use bulk if supported?
-            # User specifically asked for /bypass bulk logic. 
-            # For now, if multiple links, we try bulk API if command is general bypass, 
-            # Or we can iterate if it's specific?
-            # The prompt says: "and bulk link ho to api post par work karega ... endpoint: /api/bypass-bulk"
-            # It seems this endpoint is for generic bulk bypass.
-            
-            # Let's try _bp_bulk_info for all multiple link cases.
             
             info, err = await _bp_bulk_info(target_urls)
             if err:
@@ -127,7 +167,6 @@ async def _bypass_cmd(client, message):
 
         # Single URL case (existing logic)
         target_url = target_urls[0]
-        # Update wait message to show the single URL logic if needed, but it's fine.
         
         info, err = await _bp_info(cmd_name, target_url)
         if err:
@@ -183,22 +222,69 @@ async def _bypass_cmd(client, message):
         if file_format and file_format != "N/A":
             meta_lines.append(f"<b>Format:</b> {file_format}")
         meta_block = ("\n".join(meta_lines) + "\n\n") if meta_lines else ""
-        links_block = _bp_links(info.get("links") or {})
-        text = Config.BYPASS_TEMPLATE.format(
-            header_block=header_block,
-            meta_block=meta_block,
-            links_block=links_block,
-            original_url=target_url,
-        )
-        btns = EchoButtons()
-        btns.url_button(echo.UP_BTN, echo.UPDTE)
-        btns.url_button(echo.ST_BTN, echo.REPO)
-        buttons = btns.build(2)
-        await edit_message(
-            wait_msg,
-            text,
-            buttons=buttons,
-        )
+        
+        links_dict = info.get("links") or {}
+        
+        # Determine if we need pagination (limit > 10 links)
+        if len(links_dict) > 10:
+            uid = str(uuid.uuid4())
+            _BP_CACHE[uid] = {
+                "header": header_block,
+                "meta": meta_block,
+                "links": links_dict,
+                "url": target_url
+            }
+            
+            # Show first page
+            items = list(links_dict.items())
+            first_chunk = dict(items[:10])
+            links_block = _bp_links(first_chunk)
+            
+            text = Config.BYPASS_TEMPLATE.format(
+                header_block=header_block,
+                meta_block=meta_block,
+                links_block=links_block,
+                original_url=target_url,
+            )
+            
+            buttons = [
+                [
+                    InlineKeyboardButton("Next ➡️", callback_data=f"bp_page_{uid}_2")
+                ]
+            ]
+            
+            # Add repo buttons
+            btns = EchoButtons()
+            btns.url_button(echo.UP_BTN, echo.UPDTE)
+            btns.url_button(echo.ST_BTN, echo.REPO)
+            repo_btns = btns.build(2)
+            if repo_btns:
+                for row in repo_btns:
+                    buttons.append(row)
+                    
+            await edit_message(
+                wait_msg,
+                text,
+                buttons=InlineKeyboardMarkup(buttons),
+            )
+        else:
+            links_block = _bp_links(links_dict)
+            text = Config.BYPASS_TEMPLATE.format(
+                header_block=header_block,
+                meta_block=meta_block,
+                links_block=links_block,
+                original_url=target_url,
+            )
+            btns = EchoButtons()
+            btns.url_button(echo.UP_BTN, echo.UPDTE)
+            btns.url_button(echo.ST_BTN, echo.REPO)
+            buttons = btns.build(2)
+            await edit_message(
+                wait_msg,
+                text,
+                buttons=buttons,
+            )
+            
     except Exception as e:
         LOGGER.error(f"bypass_cmd error: {e}", exc_info=True)
         try:
