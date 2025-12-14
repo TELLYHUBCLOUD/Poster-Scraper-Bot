@@ -29,8 +29,11 @@ _BP_CACHE = {}
 
 async def _bp_page_cb(client, callback_query):
     try:
-        _, uid, page = callback_query.data.split("_")
-        page = int(page)
+        # Format: bp_page_{uid}_{page}
+        # Split gives: ["bp", "page", uid, page_num]
+        parts = callback_query.data.split("_")
+        page = int(parts[-1])
+        uid = "_".join(parts[2:-1])  # Join back in case UUID has underscores
         
         data = _BP_CACHE.get(uid)
         if not data:
