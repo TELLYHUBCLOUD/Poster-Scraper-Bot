@@ -34,6 +34,8 @@ _BYPASS_CMD_TO_SERVICE = {
     "nd": "nexdrive",
     "hblinks": "hblinks",
     "hbl": "hblinks",
+    "vegamovies": "vegamovies",
+    "vega": "vegamovies",
 }
 
 _BYPASS_ENDPOINTS = {
@@ -55,6 +57,7 @@ _BYPASS_ENDPOINTS = {
     "luxdrive": "https://pbx1botapi.vercel.app/api/luxdrive?url=",
     "nexdrive": "https://pbx1botsapi2.vercel.app/api/nexdrive?url=",
     "hblinks": "https://pbx1botsapi2.vercel.app/api/hblinks?url=",
+    "vegamovies": "https://pbx1botsapi2.vercel.app/api/vega?url=",
 }
 
 def _bp_srv(cmd):
