@@ -1,11 +1,30 @@
 import json
 import re
+from typing import Dict, List, Optional, Tuple, Any
 from urllib.parse import urlparse, quote_plus
 
 import requests
+import validators
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
+from cachetools import TTLCache
 
 from .. import LOGGER
 from .utils.xtra import _sync_to_async
+
+# Constants for timeouts and retry configuration
+BYPASS_TIMEOUT = 120  # Reduced from 300s to 120s for better user experience
+BYPASS_SHORT_TIMEOUT = 30  # For quick operations
+MAX_RETRY_ATTEMPTS = 3
+RETRY_WAIT_MIN = 1  # seconds
+RETRY_WAIT_MAX = 10  # seconds
+
+# Cache for bypass results (TTL: 1 hour, max 100 items)
+_bypass_cache = TTLCache(maxsize=100, ttl=3600)
 
 _BYPASS_CMD_TO_SERVICE = {
     "gdflix": "gdflix",
@@ -186,8 +205,6 @@ def _bp_norm(data, service):
             url = str(url).strip()
             if not url.startswith(("http://", "https://")):
                 continue
-            if not url.startswith(("http://", "https://")):
-                continue
             links_clean[lbl] = url
     
     # Special handling for Terabox/Bypass new API structure
@@ -250,19 +267,110 @@ def _bp_norm(data, service):
     }
 
 
-async def _bp_info(cmd_name, target_url):
+def _validate_url(url: str) -> Tuple[bool, Optional[str]]:
+    """Validate URL format and structure.
+    
+    Args:
+        url: URL string to validate
+        
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not url or not isinstance(url, str):
+        return False, "Invalid URL format."
+    
+    url = url.strip()
+    
+    # Basic validation
+    if not validators.url(url):
+        return False, "Invalid URL format."
+    
+    try:
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.netloc:
+            return False, "URL missing scheme or domain."
+        if parsed.scheme not in ['http', 'https']:
+            return False, "Only HTTP/HTTPS URLs are supported."
+    except Exception as e:
+        return False, f"URL validation error: {str(e)}"
+    
+    return True, None
+
+
+@retry(
+    stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
+    wait=wait_exponential(multiplier=RETRY_WAIT_MIN, max=RETRY_WAIT_MAX),
+    retry=retry_if_exception_type((requests.exceptions.RequestException, requests.exceptions.Timeout)),
+    reraise=True,
+)
+async def _make_bypass_request(api_url: str, service: str, is_post: bool = False, json_data: Optional[Dict] = None) -> requests.Response:
+    """Make HTTP request to bypass API with retry logic.
+    
+    Args:
+        api_url: Full API endpoint URL
+        service: Service name for logging
+        is_post: Whether to use POST instead of GET
+        json_data: JSON data for POST requests
+        
+    Returns:
+        Response object
+        
+    Raises:
+        requests.exceptions.RequestException: On request failure
+    """
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    
+    timeout = BYPASS_SHORT_TIMEOUT if is_post else BYPASS_TIMEOUT
+    
+    try:
+        if is_post:
+            resp = await _sync_to_async(
+                requests.post, api_url, json=json_data, headers=headers, timeout=timeout
+            )
+        else:
+            resp = await _sync_to_async(
+                requests.get, api_url, headers=headers, timeout=timeout
+            )
+        return resp
+    except requests.exceptions.Timeout:
+        LOGGER.error(f"[{service}] Request timeout after {timeout}s")
+        raise
+    except requests.exceptions.RequestException as e:
+        LOGGER.error(f"[{service}] Request failed: {e}")
+        raise
+
+
+async def _bp_info(cmd_name: str, target_url: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Fetch bypass information for a given URL.
+    
+    Args:
+        cmd_name: Command name (e.g., 'gdflix', 'terabox')
+        target_url: URL to bypass
+        
+    Returns:
+        Tuple of (normalized_data, error_message)
+    """
     service = _bp_srv(cmd_name)
     if not service:
         return None, "Unknown platform for this command."
+    
     base = _BYPASS_ENDPOINTS.get(service)
     if not base:
         return None, "Bypass endpoint not configured for this service."
-    try:
-        parsed = urlparse(target_url)
-        if not parsed.scheme or not parsed.netloc:
-            return None, "Invalid URL."
-    except Exception:
-        return None, "Invalid URL."
+    
+    # Validate URL
+    is_valid, error_msg = _validate_url(target_url)
+    if not is_valid:
+        return None, error_msg
+    
+    # Check cache first
+    cache_key = f"{service}:{target_url}"
+    if cache_key in _bypass_cache:
+        LOGGER.info(f"Cache hit for {service}")
+        return _bypass_cache[cache_key], None
+    # Build API URL based on service type
     if service == "transfer_it":
         api_url = base
     else:
@@ -270,9 +378,15 @@ async def _bp_info(cmd_name, target_url):
         if service == "terabox":
             # Replace common alternate domains with terabox.com
             # The API expects https://terabox.com/s/xxxx
-            for dom in ["1024terabox.com", "teraboxapp.com", "terabox.app", "nephobox.com", "4funbox.com", "mirrobox.com", "momerybox.com", "terabox.fun"]:
+            terabox_domains = [
+                "1024terabox.com", "teraboxapp.com", "terabox.app", 
+                "nephobox.com", "4funbox.com", "mirrobox.com", 
+                "momerybox.com", "terabox.fun"
+            ]
+            for dom in terabox_domains:
                 if dom in target_url:
                     target_url = target_url.replace(dom, "terabox.com")
+                    LOGGER.info(f"Normalized Terabox domain to terabox.com")
                     break
         
         # Gofile Custom Logic: Extract ID and append to base
@@ -280,36 +394,36 @@ async def _bp_info(cmd_name, target_url):
             # URL: https://gofile.io/d/B3QPQb -> ID: B3QPQb
             # API: base + ID
             try:
-                match = re.search(r"gofile\.io/d/([a-zA-Z0-9-]+)", target_url)
+                match = re.search(r"gofile\.io/d/([a-zA-Z0-9_-]+)", target_url)
                 if match:
                     gofile_id = match.group(1)
                     api_url = f"{base}/{gofile_id}"
+                    LOGGER.info(f"Extracted Gofile ID: {gofile_id}")
                 else:
                     return None, "Invalid Gofile URL format. Expected gofile.io/d/ID"
-            except Exception:
+            except Exception as e:
+                LOGGER.error(f"Gofile ID extraction error: {e}")
                 return None, "Failed to extract Gofile ID."
         else:
             api_url = f"{base}{quote_plus(target_url)}"
 
     LOGGER.info(f"Bypassing via [{service}] -> {api_url}")
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
+    
+    # Make API request with retry logic
     try:
-        if service == "transfer_it": 
-            # It seems transfer_it uses POST? (Based on specific logic elsewhere if any, but sticking to generic GET if not specified)
-            # Checking previous context, transfer_it logic was simple base.
-            # Assuming GET is fine unless proved otherwise.
-            # But wait, logic had specific block for POST before? 
-            # No, standard was GET.
-            # But the user edit broke the line: resp = await _sync_to_async(requests.get, api_url, headers=headers, timeout=300)
-            resp = await _sync_to_async(requests.get, api_url, headers=headers, timeout=300)
-        else:
-            resp = await _sync_to_async(requests.get, api_url, headers=headers, timeout=300) 
+        resp = await _make_bypass_request(api_url, service)
+    except requests.exceptions.Timeout:
+        return None, "Request timeout. The service might be slow or unavailable."
+    except requests.exceptions.RequestException as e:
+        LOGGER.error(f"Bypass request failed after retries: {e}", exc_info=True)
+        return None, "Failed to reach bypass service after multiple attempts."
     except Exception as e:
-        LOGGER.error(f"Bypass HTTP error: {e}", exc_info=True)
-        return None, "Failed to reach bypass service."
+        LOGGER.error(f"Unexpected error during bypass request: {e}", exc_info=True)
+        return None, "An unexpected error occurred."
+    
     if resp.status_code != 200:
         LOGGER.error(f"Bypass API returned {resp.status_code}: {resp.text[:200]}")
-        return None, "Bypass service error."
+        return None, f"Bypass service error (HTTP {resp.status_code})."
     try:
         data = resp.json()
     except json.JSONDecodeError as e:
@@ -330,23 +444,48 @@ async def _bp_info(cmd_name, target_url):
         norm = _bp_norm(fake, service)
         return norm, None
     if "success" in data and not data.get("success"):
-        return None, data.get("message") or "Bypass failed."
+        error_msg = data.get("message") or "Bypass failed."
+        return None, error_msg
+    
     norm = _bp_norm(data, service)
+    
+    # Cache the successful result
+    if norm:
+        _bypass_cache[cache_key] = norm
+    
     return norm, None
 
-async def _bp_bulk_info(urls):
+async def _bp_bulk_info(urls: List[str]) -> Tuple[Optional[Any], Optional[str]]:
     api_url = _BYPASS_ENDPOINTS.get("bypass_bulk")
     if not api_url:
         return None, "Bulk bypass endpoint not configured."
     
+    """Bulk bypass multiple URLs at once.
+    
+    Args:
+        urls: List of URLs to bypass
+        
+    Returns:
+        Tuple of (results, error_message)
+    """
+    # Validate all URLs first
+    invalid_urls = []
+    for url in urls:
+        is_valid, error = _validate_url(url)
+        if not is_valid:
+            invalid_urls.append(url)
+    
+    if invalid_urls:
+        return None, f"Invalid URLs found: {len(invalid_urls)} out of {len(urls)}"
+    
     LOGGER.info(f"Bulk bypassing {len(urls)} links via {api_url}")
     try:
-        resp = await _sync_to_async(
-            requests.post, api_url, json={"urls": urls}, timeout=60
+        resp = await _make_bypass_request(
+            api_url, "bypass_bulk", is_post=True, json_data={"urls": urls}
         )
     except Exception as e:
         LOGGER.error(f"Bulk bypass error: {e}", exc_info=True)
-        return None, "Failed to reach bulk service."
+        return None, "Failed to reach bulk service after retries."
         
     if resp.status_code != 200:
          return None, f"Bulk service returned {resp.status_code}"

@@ -29,6 +29,11 @@ class echo(object):
 /adda - Addatimes poster
 /stage - Stage poster
 /netflix - Netflix poster
+/mxplayer - MX Player poster
+/hotstar - Disney+ Hotstar poster
+/sonyliv - SonyLIV poster
+/voot - Voot poster
+/jiocinema - JioCinema poster
 /youtube - YouTube thumbnail
 /instagram - Instagram thumbnail
 /facebook - Facebook thumbnail
@@ -48,7 +53,7 @@ class echo(object):
 </blockquote>
 """
     IMG = "https://i.ibb.co/ymD61smt/photo-2025-12-10-13-50-26-7582226305333067796.jpg"
-    EFCT = 5104841245755180586 # 🔥 Fire Effect Animation, not using bcz working only in bot pm
+    EFCT = 5104841245755180586 # add more Effect # 🔥 Fire Effect Animation, not using bcz working only in bot pm
     ST_BTN = "Repo"
     REPO = "https://t.me/tellycloudbots"
     UP_BTN = "Updates"

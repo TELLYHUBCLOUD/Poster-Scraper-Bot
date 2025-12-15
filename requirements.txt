@@ -8,3 +8,6 @@ pycountry
 python-dotenv
 pytz
 dnspython
+tenacity
+cachetools
+validators

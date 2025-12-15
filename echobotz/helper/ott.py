@@ -1,11 +1,29 @@
 import re
 import json
+from typing import Dict, Optional, Tuple, Any
 from urllib.parse import urlparse, quote_plus
 
 import requests
+import validators
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
+from cachetools import TTLCache
 
 from .. import LOGGER
 from .utils.xtra import _sync_to_async
+
+# Constants for timeouts and retry configuration
+OTT_TIMEOUT = 20  # Increased from 15s to 20s
+MAX_RETRY_ATTEMPTS = 3
+RETRY_WAIT_MIN = 1  # seconds
+RETRY_WAIT_MAX = 8  # seconds
+
+# Cache for OTT poster results (TTL: 2 hours, max 200 items)
+_ott_cache = TTLCache(maxsize=200, ttl=7200)
 
 def _collect_url_pairs(node, out_list, parent_key=""):
     if isinstance(node, dict):
@@ -45,10 +63,16 @@ _CMD_TO_PROVIDER = {
     "adda": "addatimes", "ad": "addatimes",
     "stage": "stage", "stg": "stage",
     "netflix": "netflix", "nf": "netflix",
+    "mxplayer": "mxplayer", "mx": "mxplayer",
     "youtube": "ytdl", "yt": "ytdl",
     "instagram": "instagram", "ig": "instagram",
     "facebook": "facebook", "fb": "facebook",
     "tiktok": "tiktok", "tk": "tiktok",
+    # New OTT platforms
+    "hotstar": "hotstar", "hs": "hotstar",
+    "sonyliv": "sonyliv", "sl": "sonyliv",
+    "voot": "voot", "vo": "voot",
+    "jiocinema": "jiocinema", "jc": "jiocinema",
 }
 
 _PROVIDER_NAMES = {
@@ -66,11 +90,16 @@ _PROVIDER_NAMES = {
     "addatimes": "Addatimes",
     "stage": "Stage",
     "netflix": "Netflix",
+    "mxplayer": "MX Player",
     "ytdl": "YouTube",
-
     "instagram": "Instagram",
     "facebook": "Facebook",
     "tiktok": "TikTok",
+    # New platforms
+    "hotstar": "Disney+ Hotstar",
+    "sonyliv": "SonyLIV",
+    "voot": "Voot",
+    "jiocinema": "JioCinema",
 }
 
 _WORKERS = {
@@ -88,11 +117,16 @@ _WORKERS = {
     "addatimes": "https://addatimes.the-zake.workers.dev/?url=",
     "stage": "https://stage.the-zake.workers.dev/?url=",
     "netflix": "https://netflix.the-zake.workers.dev/?url=",
-
+    "mxplayer": "https://mxplayer.the-zake.workers.dev/?url=",
     "ytdl": "https://youtubedl.the-zake.workers.dev/?url=",
     "instagram": "https://instagramdl.the-zake.workers.dev/?url=",
     "facebook": "https://facebookdl.the-zake.workers.dev/?url=",
     "tiktok": "https://tiktokdl.the-zake.workers.dev/?url=",
+    # New platforms - using the-zake.workers.dev pattern
+    "hotstar": "https://hotstar.the-zake.workers.dev/?url=",
+    "sonyliv": "https://sonyliv.the-zake.workers.dev/?url=",
+    "voot": "https://voot.the-zake.workers.dev/?url=",
+    "jiocinema": "https://jiocinema.the-zake.workers.dev/?url=",
 }
 def _extract_url_from_message(message):
     if getattr(message, "command", None) and len(message.command) > 1:
@@ -148,7 +182,15 @@ def _extract_all_urls_from_message(message):
     return urls
 
 
-def _provider_from_cmd(cmd: str):
+def _provider_from_cmd(cmd: str) -> Optional[str]:
+    """Get provider name from command.
+    
+    Args:
+        cmd: Command string
+        
+    Returns:
+        Provider name or None
+    """
     cmd = cmd.lower().lstrip("/")
     return _CMD_TO_PROVIDER.get(cmd)
 
@@ -234,10 +276,61 @@ def _normalize_ott_json(provider: str, data: dict):
         "poster": poster,
         "landscape": landscape,
         "raw": data,
-        "source": _PROVIDER_NAMES.get(provider, provider),
+        "source": _PROVIDER_NAMES.get(provider, provider.title()),
+    }
+
+
+@retry(
+    stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
+    wait=wait_exponential(multiplier=RETRY_WAIT_MIN, max=RETRY_WAIT_MAX),
+    retry=retry_if_exception_type((requests.exceptions.RequestException, requests.exceptions.Timeout)),
+    reraise=True,
+)
+async def _make_ott_request(worker_url: str, provider: str) -> requests.Response:
+    """Make HTTP request to OTT worker API with retry logic.
+    
+    Args:
+        worker_url: Full worker endpoint URL
+        provider: Provider name for logging
+        
+    Returns:
+        Response object
+        
+    Raises:
+        requests.exceptions.RequestException: On request failure
+    """
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
-async def _fetch_ott_info(cmd_name: str, target_url: str):
+    try:
+        resp = await _sync_to_async(
+            requests.get, worker_url, headers=headers, timeout=OTT_TIMEOUT
+        )
+        return resp
+    except requests.exceptions.Timeout:
+        LOGGER.error(f"[{provider}] Request timeout after {OTT_TIMEOUT}s")
+        raise
+    except requests.exceptions.RequestException as e:
+        LOGGER.error(f"[{provider}] Request failed: {e}")
+        raise
+    
+async def _fetch_ott_info(cmd_name: str, target_url: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Fetch OTT poster information for a given URL.
+    
+    Args:
+        cmd_name: Command name (e.g., 'prime', 'netflix')
+        target_url: URL to fetch poster from
+        
+    Returns:
+        Tuple of (poster_info, error_message)
+    """
+    # Check cache first
+    cache_key = f"{cmd_name}:{target_url}"
+    if cache_key in _ott_cache:
+        LOGGER.info(f"Cache hit for OTT: {cmd_name}")
+        return _ott_cache[cache_key], None
+    
     provider = _provider_from_cmd(cmd_name)
     if not provider:
         return None, "Unknown platform for this command."
@@ -246,27 +339,27 @@ async def _fetch_ott_info(cmd_name: str, target_url: str):
     if not base:
         return None, "Worker endpoint not configured for this platform."
 
-    try:
-        parsed = urlparse(target_url)
-        if not parsed.scheme or not parsed.netloc:
-            return None, "Invalid URL."
-    except Exception:
-        return None, "Invalid URL."
+    # Validate URL
+    if not validators.url(target_url):
+        return None, "Invalid URL format."
 
     worker_url = f"{base}{quote_plus(target_url)}"
-    LOGGER.info(f"Fetching OTT poster via {worker_url}")
+    LOGGER.info(f"Fetching OTT poster from [{provider}] via {worker_url}")
 
     try:
-        resp = await _sync_to_async(
-            requests.get, worker_url, timeout=15
-        )
+        resp = await _make_ott_request(worker_url, provider)
+    except requests.exceptions.Timeout:
+        return None, "Request timeout. The service might be slow or unavailable."
+    except requests.exceptions.RequestException as e:
+        LOGGER.error(f"OTT request failed after retries: {e}", exc_info=True)
+        return None, "Failed to reach poster service after multiple attempts."
     except Exception as e:
-        LOGGER.error(f"HTTP error calling worker: {e}", exc_info=True)
-        return None, "Failed to reach poster service."
+        LOGGER.error(f"Unexpected error during OTT request: {e}", exc_info=True)
+        return None, "An unexpected error occurred."
 
     if resp.status_code != 200:
         LOGGER.error(f"Worker returned status {resp.status_code}: {resp.text[:200]}")
-        return None, f"Poster service error: {resp.status_code}"
+        return None, f"Poster service error (HTTP {resp.status_code})"
 
     try:
         data = resp.json()
@@ -277,5 +370,9 @@ async def _fetch_ott_info(cmd_name: str, target_url: str):
     info = _normalize_ott_json(provider, data)
     if not info:
         return None, "Could not parse poster info."
+    
+    # Cache the successful result
+    if info:
+        _ott_cache[cache_key] = info
 
     return info, None
