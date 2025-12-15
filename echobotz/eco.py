@@ -1,4 +1,5 @@
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+import random
 
 class echo(object):
     ABC = """<b><u>POSTER SCRAPPER BOT</u></b>
@@ -52,11 +53,32 @@ class echo(object):
 <b>Bot By</b> @tellycloudbots   
 </blockquote>
 """
-    IMG = "https://i.ibb.co/ymD61smt/photo-2025-12-10-13-50-26-7582226305333067796.jpg"
-    EFCT = 5104841245755180586 # add more Effect # 🔥 Fire Effect Animation, not using bcz working only in bot pm
+    IMG = "https://ibb.co/4ZmgW54D"
+    
+    # Telegram Message Effects - All popular effects
+    EFFECTS = {
+        "fire": 5104841245755180586,           # 🔥 Fire
+        "like": 5107584321108051014,           # 👍 Like/Heart
+        "dislike": 5104858069142078462,        # 👎 Dislike
+        "love": 5159385139981059251,           # ❤️ Love/Hearts
+        "celebrate": 5046509860389126442,      # 🎉 Celebrate/Party
+        "fireworks": 5046589136895476101,      # 🎆 Fireworks
+        "poop": 5046446160663208973,           # 💩 Poop
+        "mindblown": 5159385139981059251,      # 🤯 Mind Blown
+    }
+    
+    # For backward compatibility
+    EFCT = EFFECTS["fire"]  # Default to fire effect
+    
+    @classmethod
+    def get_random_effect(cls):
+        """Get a random Telegram message effect ID."""
+        return random.choice(list(cls.EFFECTS.values()))
+    
     ST_BTN = "Repo"
     REPO = "https://t.me/tellycloudbots"
     UP_BTN = "Updates"
     UPDTE = "https://t.me/tellycloudbots"
     SP_BTN = "Support Group"
     SP_GR = "https://t.me/tellybypassgrp"
+
