@@ -4,7 +4,6 @@ from typing import Dict, List, Optional, Tuple, Any
 from urllib.parse import urlparse, quote_plus
 
 import requests
-import validators
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -281,10 +280,7 @@ def _validate_url(url: str) -> Tuple[bool, Optional[str]]:
     
     url = url.strip()
     
-    # Basic validation
-    if not validators.url(url):
-        return False, "Invalid URL format."
-    
+    # Basic validation using urlparse
     try:
         parsed = urlparse(url)
         if not parsed.scheme or not parsed.netloc:

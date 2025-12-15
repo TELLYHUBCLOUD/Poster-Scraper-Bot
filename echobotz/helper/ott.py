@@ -4,7 +4,6 @@ from typing import Dict, Optional, Tuple, Any
 from urllib.parse import urlparse, quote_plus
 
 import requests
-import validators
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -340,7 +339,11 @@ async def _fetch_ott_info(cmd_name: str, target_url: str) -> Tuple[Optional[Dict
         return None, "Worker endpoint not configured for this platform."
 
     # Validate URL
-    if not validators.url(target_url):
+    try:
+        parsed = urlparse(target_url)
+        if not parsed.scheme or not parsed.netloc:
+            return None, "Invalid URL format."
+    except Exception:
         return None, "Invalid URL format."
 
     worker_url = f"{base}{quote_plus(target_url)}"
