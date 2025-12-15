@@ -4,26 +4,13 @@ from typing import Dict, List, Optional, Tuple, Any
 from urllib.parse import urlparse, quote_plus
 
 import requests
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_exponential,
-    retry_if_exception_type,
-)
-from cachetools import TTLCache
 
 from .. import LOGGER
 from .utils.xtra import _sync_to_async
 
-# Constants for timeouts and retry configuration
-BYPASS_TIMEOUT = 120  # Reduced from 300s to 120s for better user experience
-BYPASS_SHORT_TIMEOUT = 30  # For quick operations
-MAX_RETRY_ATTEMPTS = 3
-RETRY_WAIT_MIN = 1  # seconds
-RETRY_WAIT_MAX = 10  # seconds
-
-# Cache for bypass results (TTL: 1 hour, max 100 items)
-_bypass_cache = TTLCache(maxsize=100, ttl=3600)
+# Constants for timeouts
+BYPASS_TIMEOUT = 120
+BYPASS_SHORT_TIMEOUT = 30
 
 _BYPASS_CMD_TO_SERVICE = {
     "gdflix": "gdflix",
@@ -292,52 +279,6 @@ def _validate_url(url: str) -> Tuple[bool, Optional[str]]:
     
     return True, None
 
-
-@retry(
-    stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
-    wait=wait_exponential(multiplier=RETRY_WAIT_MIN, max=RETRY_WAIT_MAX),
-    retry=retry_if_exception_type((requests.exceptions.RequestException, requests.exceptions.Timeout)),
-    reraise=True,
-)
-async def _make_bypass_request(api_url: str, service: str, is_post: bool = False, json_data: Optional[Dict] = None) -> requests.Response:
-    """Make HTTP request to bypass API with retry logic.
-    
-    Args:
-        api_url: Full API endpoint URL
-        service: Service name for logging
-        is_post: Whether to use POST instead of GET
-        json_data: JSON data for POST requests
-        
-    Returns:
-        Response object
-        
-    Raises:
-        requests.exceptions.RequestException: On request failure
-    """
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
-    
-    timeout = BYPASS_SHORT_TIMEOUT if is_post else BYPASS_TIMEOUT
-    
-    try:
-        if is_post:
-            resp = await _sync_to_async(
-                requests.post, api_url, json=json_data, headers=headers, timeout=timeout
-            )
-        else:
-            resp = await _sync_to_async(
-                requests.get, api_url, headers=headers, timeout=timeout
-            )
-        return resp
-    except requests.exceptions.Timeout:
-        LOGGER.error(f"[{service}] Request timeout after {timeout}s")
-        raise
-    except requests.exceptions.RequestException as e:
-        LOGGER.error(f"[{service}] Request failed: {e}")
-        raise
-
-
 async def _bp_info(cmd_name: str, target_url: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """Fetch bypass information for a given URL.
     
@@ -405,17 +346,17 @@ async def _bp_info(cmd_name: str, target_url: str) -> Tuple[Optional[Dict[str, A
 
     LOGGER.info(f"Bypassing via [{service}] -> {api_url}")
     
-    # Make API request with retry logic
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    
     try:
-        resp = await _make_bypass_request(api_url, service)
-    except requests.exceptions.Timeout:
-        return None, "Request timeout. The service might be slow or unavailable."
-    except requests.exceptions.RequestException as e:
-        LOGGER.error(f"Bypass request failed after retries: {e}", exc_info=True)
-        return None, "Failed to reach bypass service after multiple attempts."
+        resp = await _sync_to_async(
+            requests.get, api_url, headers=headers, timeout=BYPASS_TIMEOUT
+        )
     except Exception as e:
-        LOGGER.error(f"Unexpected error during bypass request: {e}", exc_info=True)
-        return None, "An unexpected error occurred."
+        LOGGER.error(f"Bypass request failed: {e}", exc_info=True)
+        return None, "Failed to reach bypass service."
     
     if resp.status_code != 200:
         LOGGER.error(f"Bypass API returned {resp.status_code}: {resp.text[:200]}")
@@ -445,10 +386,6 @@ async def _bp_info(cmd_name: str, target_url: str) -> Tuple[Optional[Dict[str, A
     
     norm = _bp_norm(data, service)
     
-    # Cache the successful result
-    if norm:
-        _bypass_cache[cache_key] = norm
-    
     return norm, None
 
 async def _bp_bulk_info(urls: List[str]) -> Tuple[Optional[Any], Optional[str]]:
@@ -476,12 +413,12 @@ async def _bp_bulk_info(urls: List[str]) -> Tuple[Optional[Any], Optional[str]]:
     
     LOGGER.info(f"Bulk bypassing {len(urls)} links via {api_url}")
     try:
-        resp = await _make_bypass_request(
-            api_url, "bypass_bulk", is_post=True, json_data={"urls": urls}
+        resp = await _sync_to_async(
+            requests.post, api_url, json={"urls": urls}, timeout=BYPASS_SHORT_TIMEOUT
         )
     except Exception as e:
         LOGGER.error(f"Bulk bypass error: {e}", exc_info=True)
-        return None, "Failed to reach bulk service after retries."
+        return None, "Failed to reach bulk service."
         
     if resp.status_code != 200:
          return None, f"Bulk service returned {resp.status_code}"

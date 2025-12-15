@@ -4,25 +4,12 @@ from typing import Dict, Optional, Tuple, Any
 from urllib.parse import urlparse, quote_plus
 
 import requests
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_exponential,
-    retry_if_exception_type,
-)
-from cachetools import TTLCache
 
 from .. import LOGGER
 from .utils.xtra import _sync_to_async
 
-# Constants for timeouts and retry configuration
-OTT_TIMEOUT = 20  # Increased from 15s to 20s
-MAX_RETRY_ATTEMPTS = 3
-RETRY_WAIT_MIN = 1  # seconds
-RETRY_WAIT_MAX = 8  # seconds
-
-# Cache for OTT poster results (TTL: 2 hours, max 200 items)
-_ott_cache = TTLCache(maxsize=200, ttl=7200)
+# Constants for timeouts
+OTT_TIMEOUT = 20
 
 def _collect_url_pairs(node, out_list, parent_key=""):
     if isinstance(node, dict):
@@ -278,42 +265,6 @@ def _normalize_ott_json(provider: str, data: dict):
         "source": _PROVIDER_NAMES.get(provider, provider.title()),
     }
 
-
-@retry(
-    stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
-    wait=wait_exponential(multiplier=RETRY_WAIT_MIN, max=RETRY_WAIT_MAX),
-    retry=retry_if_exception_type((requests.exceptions.RequestException, requests.exceptions.Timeout)),
-    reraise=True,
-)
-async def _make_ott_request(worker_url: str, provider: str) -> requests.Response:
-    """Make HTTP request to OTT worker API with retry logic.
-    
-    Args:
-        worker_url: Full worker endpoint URL
-        provider: Provider name for logging
-        
-    Returns:
-        Response object
-        
-    Raises:
-        requests.exceptions.RequestException: On request failure
-    """
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
-    
-    try:
-        resp = await _sync_to_async(
-            requests.get, worker_url, headers=headers, timeout=OTT_TIMEOUT
-        )
-        return resp
-    except requests.exceptions.Timeout:
-        LOGGER.error(f"[{provider}] Request timeout after {OTT_TIMEOUT}s")
-        raise
-    except requests.exceptions.RequestException as e:
-        LOGGER.error(f"[{provider}] Request failed: {e}")
-        raise
-    
 async def _fetch_ott_info(cmd_name: str, target_url: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """Fetch OTT poster information for a given URL.
     
@@ -324,12 +275,6 @@ async def _fetch_ott_info(cmd_name: str, target_url: str) -> Tuple[Optional[Dict
     Returns:
         Tuple of (poster_info, error_message)
     """
-    # Check cache first
-    cache_key = f"{cmd_name}:{target_url}"
-    if cache_key in _ott_cache:
-        LOGGER.info(f"Cache hit for OTT: {cmd_name}")
-        return _ott_cache[cache_key], None
-    
     provider = _provider_from_cmd(cmd_name)
     if not provider:
         return None, "Unknown platform for this command."
@@ -349,16 +294,17 @@ async def _fetch_ott_info(cmd_name: str, target_url: str) -> Tuple[Optional[Dict
     worker_url = f"{base}{quote_plus(target_url)}"
     LOGGER.info(f"Fetching OTT poster from [{provider}] via {worker_url}")
 
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    
     try:
-        resp = await _make_ott_request(worker_url, provider)
-    except requests.exceptions.Timeout:
-        return None, "Request timeout. The service might be slow or unavailable."
-    except requests.exceptions.RequestException as e:
-        LOGGER.error(f"OTT request failed after retries: {e}", exc_info=True)
-        return None, "Failed to reach poster service after multiple attempts."
+        resp = await _sync_to_async(
+            requests.get, worker_url, headers=headers, timeout=OTT_TIMEOUT
+        )
     except Exception as e:
-        LOGGER.error(f"Unexpected error during OTT request: {e}", exc_info=True)
-        return None, "An unexpected error occurred."
+        LOGGER.error(f"OTT request failed: {e}", exc_info=True)
+        return None, "Failed to reach poster service."
 
     if resp.status_code != 200:
         LOGGER.error(f"Worker returned status {resp.status_code}: {resp.text[:200]}")
@@ -373,9 +319,5 @@ async def _fetch_ott_info(cmd_name: str, target_url: str) -> Tuple[Optional[Dict
     info = _normalize_ott_json(provider, data)
     if not info:
         return None, "Could not parse poster info."
-    
-    # Cache the successful result
-    if info:
-        _ott_cache[cache_key] = info
 
     return info, None
