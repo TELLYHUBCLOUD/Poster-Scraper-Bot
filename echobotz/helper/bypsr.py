@@ -297,16 +297,12 @@ async def _bp_info(cmd_name: str, target_url: str) -> Tuple[Optional[Dict[str, A
     if not base:
         return None, "Bypass endpoint not configured for this service."
     
+    
     # Validate URL
     is_valid, error_msg = _validate_url(target_url)
     if not is_valid:
         return None, error_msg
     
-    # Check cache first
-    cache_key = f"{service}:{target_url}"
-    if cache_key in _bypass_cache:
-        LOGGER.info(f"Cache hit for {service}")
-        return _bypass_cache[cache_key], None
     # Build API URL based on service type
     if service == "transfer_it":
         api_url = base
