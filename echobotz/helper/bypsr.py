@@ -43,6 +43,17 @@ _BYPASS_CMD_TO_SERVICE = {
     "no": "custom_neo",
     "gofile": "custom_gofile",
     "go": "custom_gofile",
+    # New additions
+    "hubcdn": "custom_hubcdn",
+    "hbn": "custom_hubcdn",
+    "driveleech": "custom_driveleech",
+    "dl": "custom_driveleech",
+    "extralink": "custom_extralink",
+    "el": "custom_extralink",
+    "luxdrive": "custom_luxdrive",
+    "ld": "custom_luxdrive",
+    "pixeldrain": "custom_pixeldrain",
+    "pd": "custom_pixeldrain",
 }
 _BYPASS_ENDPOINTS = {
     "gdflix": "https://pbx1botapi.vercel.app/api/gdflix?url=",
@@ -60,7 +71,13 @@ _BYPASS_ENDPOINTS = {
     "custom_gdrex": "https://pbx1botapi.vercel.app/api/gdrex?url=",
     "custom_extraflix": "https://pbx1botapi.vercel.app/api/extraflix?url=",
     "custom_neo": "https://pbx1botapi.vercel.app/api/neo?url=",
-    "custom_gofile": "https://gofile.dd-bypassed.workers.dev/api", 
+    "custom_gofile": "https://gofile.dd-bypassed.workers.dev/api",
+    # New endpoints
+    "custom_hubcdn": "https://pbx1botapi.vercel.app/api/hubcdn?url=",
+    "custom_driveleech": "https://pbx1botapi.vercel.app/api/driveleech?url=",
+    "custom_extralink": "https://pbx1botapi.vercel.app/api/extralink?url=",
+    "custom_luxdrive": "https://pbx1botapi.vercel.app/api/luxdrive?url=",
+    "custom_pixeldrain": "https://pbx1botsapi2.vercel.app/api/pixeldrain?url=",
 }
 """
 Credits:
