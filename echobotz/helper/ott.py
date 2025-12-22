@@ -1,15 +1,10 @@
 import re
 import json
-from typing import Dict, Optional, Tuple, Any
 from urllib.parse import urlparse, quote_plus
-
 import requests
-
 from .. import LOGGER
 from .utils.xtra import _sync_to_async
 
-# Constants for timeouts
-OTT_TIMEOUT = 20
 
 def _collect_url_pairs(node, out_list, parent_key=""):
     if isinstance(node, dict):
@@ -34,6 +29,7 @@ def _looks_like_image(url: str) -> bool:
         return True
     return False
 
+
 _CMD_TO_PROVIDER = {
     "prime": "primevideo", "pv": "primevideo",
     "zee5": "zee5", "z5": "zee5",
@@ -54,11 +50,7 @@ _CMD_TO_PROVIDER = {
     "instagram": "instagram", "ig": "instagram",
     "facebook": "facebook", "fb": "facebook",
     "tiktok": "tiktok", "tk": "tiktok",
-    # New OTT platforms
-    "hotstar": "hotstar", "hs": "hotstar",
-    "sonyliv": "sonyliv", "sl": "sonyliv",
-    "voot": "voot", "vo": "voot",
-    "jiocinema": "jiocinema", "jc": "jiocinema",
+    "crunchyroll": "crunchyroll", "cr": "crunchyroll",
 }
 
 _PROVIDER_NAMES = {
@@ -81,11 +73,7 @@ _PROVIDER_NAMES = {
     "instagram": "Instagram",
     "facebook": "Facebook",
     "tiktok": "TikTok",
-    # New platforms
-    "hotstar": "Disney+ Hotstar",
-    "sonyliv": "SonyLIV",
-    "voot": "Voot",
-    "jiocinema": "JioCinema",
+    "crunchyroll": "Crunchyroll",
 }
 
 _WORKERS = {
@@ -108,216 +96,94 @@ _WORKERS = {
     "instagram": "https://instagramdl.the-zake.workers.dev/?url=",
     "facebook": "https://facebookdl.the-zake.workers.dev/?url=",
     "tiktok": "https://tiktokdl.the-zake.workers.dev/?url=",
-    # New platforms - using the-zake.workers.dev pattern
-    "hotstar": "https://hotstar.the-zake.workers.dev/?url=",
-    "sonyliv": "https://sonyliv.the-zake.workers.dev/?url=",
-    "voot": "https://voot.the-zake.workers.dev/?url=",
-    "jiocinema": "https://jiocinema.the-zake.workers.dev/?url=",
+    "crunchyroll": "https://crunchyroll.blaze-updatez.workers.dev/?q=",
 }
+
+
 def _extract_url_from_message(message):
     if getattr(message, "command", None) and len(message.command) > 1:
-        return message.command[1].strip()
+        return " ".join(message.command[1:]).strip()
 
     if message.reply_to_message:
-        reply = message.reply_to_message
-        text = reply.text or reply.caption or ""
-        for part in text.split():
-            if part.startswith("http://") or part.startswith("https://"):
-                return part.strip()
-
-    text = message.text or ""
-    for part in text.split():
-        if part.startswith("http://") or part.startswith("https://"):
-            return part.strip()
+        text = message.reply_to_message.text or message.reply_to_message.caption or ""
+        return text.strip()
 
     return None
 
 
-def _extract_all_urls_from_message(message):
-    urls = []
-    
-    # Check command args (e.g. /bypass url1 url2)
-    if getattr(message, "command", None) and len(message.command) > 1:
-        for arg in message.command[1:]:
-            arg = arg.strip()
-            if arg.startswith("http://") or arg.startswith("https://"):
-                urls.append(arg)
+def _provider_from_cmd(cmd: str):
+    return _CMD_TO_PROVIDER.get(cmd.lower().lstrip("/"))
 
-    # Check reply message
-    if message.reply_to_message:
-        reply = message.reply_to_message
-        text = reply.text or reply.caption or ""
-        for part in text.split():
-            part = part.strip()
-            if part.startswith("http://") or part.startswith("https://"):
-                urls.append(part)
-
-    # Check current message text (if mixed with command or just text)
-    text = message.text or ""
-    # Avoid re-adding command args if we already processed them, but simpler to just regex or split
-    # If the command was /bypass url1, message.text is "/bypass url1"
-    for part in text.split():
-        part = part.strip()
-        # skip the command itself if it starts with /
-        if part.startswith("/"):
-            continue
-        if part.startswith("http://") or part.startswith("https://"):
-            if part not in urls: # simple dedup
-                urls.append(part)
-                
-    return urls
-
-
-def _provider_from_cmd(cmd: str) -> Optional[str]:
-    """Get provider name from command.
-    
-    Args:
-        cmd: Command string
-        
-    Returns:
-        Provider name or None
-    """
-    cmd = cmd.lower().lstrip("/")
-    return _CMD_TO_PROVIDER.get(cmd)
 
 def _normalize_ott_json(provider: str, data: dict):
-    if not isinstance(data, dict):
-        return None
+    if provider == "crunchyroll":
+        images = data.get("images", {}) or {}
+        return {
+            "title": data.get("title", "N/A"),
+            "year": str(data.get("year", data.get("metadata", {}).get("release_year", "N/A"))),
+            "type": "Anime Series",
+            "poster": images.get("portrait_poster"),
+            "landscape": images.get("landscape_poster") or images.get("banner_backdrop"),
+            "raw": data,
+            "source": "Crunchyroll",
+        }
 
-    if "data" in data and isinstance(data["data"], dict):
-        root = data["data"]
-    else:
-        root = data
+    root = data.get("data", data)
 
-    poster = (
-        root.get("portrait")
-        or root.get("poster")
-        or root.get("poster_url")
-        or root.get("thumbnail")
-        or root.get("image")
-        or root.get("image_url")
-        or root.get("cover")
-        or root.get("thumb")
-    )
-
-    landscape = (
-        root.get("landscape")
-        or root.get("landscape_url")
-        or root.get("backdrop")
-        or root.get("banner")
-        or root.get("fanart")
-    )
+    poster = root.get("portrait") or root.get("poster") or root.get("poster_url") or root.get("thumbnail") or root.get("image") or root.get("image_url")
+    landscape = root.get("landscape") or root.get("banner") or root.get("backdrop")
 
     urls = []
     _collect_url_pairs(data, urls)
+    image_urls = [v for _, v in urls if _looks_like_image(v)]
 
-    image_urls = [(k, v) for k, v in urls if _looks_like_image(v)]
-    all_urls = [v for _, v in image_urls] or [v for _, v in urls]
-
-    if (not poster or not _looks_like_image(str(poster))) or (
-        not landscape or not _looks_like_image(str(landscape))
-    ):
-        portrait_candidates = []
-        landscape_candidates = []
-
-        for key, url in image_urls:
-            key_l = key.lower()
-            if any(x in key_l for x in ["portrait", "vertical", "poster", "thumb", "cover", "thumbnail"]):
-                portrait_candidates.append(url)
-            if any(x in key_l for x in ["landscape", "horizontal", "backdrop", "banner", "hero"]):
-                landscape_candidates.append(url)
-
-        if (not poster or not _looks_like_image(str(poster))) and portrait_candidates:
-            poster = portrait_candidates[0]
-
-        if (not landscape or not _looks_like_image(str(landscape))) and landscape_candidates:
-            landscape = landscape_candidates[0]
-
-        if not poster and all_urls:
-            poster = all_urls[0]
-
-        if not landscape and len(all_urls) > 1:
-            candidate = all_urls[1]
-            landscape = candidate if candidate != poster else None
-
-    title = (
-        root.get("title")
-        or root.get("name")
-        or root.get("show")
-        or root.get("movie")
-        or "N/A"
-    )
-    year = (
-        root.get("year")
-        or root.get("release_year")
-        or root.get("release")
-        or "N/A"
-    )
-    otype = root.get("type") or root.get("kind") or "N/A"
+    if not poster and image_urls:
+        poster = image_urls[0]
+    if not landscape and len(image_urls) > 1:
+        landscape = image_urls[1]
 
     return {
-        "title": str(title) if title is not None else "N/A",
-        "year": str(year) if year is not None else "N/A",
-        "type": str(otype) if otype is not None else "N/A",
+        "title": str(root.get("title", "N/A")),
+        "year": str(root.get("year", "N/A")),
+        "type": str(root.get("type", "N/A")),
         "poster": poster,
         "landscape": landscape,
         "raw": data,
-        "source": _PROVIDER_NAMES.get(provider, provider.title()),
+        "source": _PROVIDER_NAMES.get(provider, provider),
     }
 
-async def _fetch_ott_info(cmd_name: str, target_url: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
-    """Fetch OTT poster information for a given URL.
-    
-    Args:
-        cmd_name: Command name (e.g., 'prime', 'netflix')
-        target_url: URL to fetch poster from
-        
-    Returns:
-        Tuple of (poster_info, error_message)
-    """
+
+async def _fetch_ott_info(cmd_name: str, target: str):
     provider = _provider_from_cmd(cmd_name)
     if not provider:
-        return None, "Unknown platform for this command."
+        return None, "Unknown platform."
 
     base = _WORKERS.get(provider)
     if not base:
-        return None, "Worker endpoint not configured for this platform."
+        return None, "Worker not configured."
 
-    # Validate URL
+    if provider != "crunchyroll":
+        try:
+            parsed = urlparse(target)
+            if not parsed.scheme or not parsed.netloc:
+                return None, "Invalid URL."
+        except Exception:
+            return None, "Invalid URL."
+
+    worker_url = f"{base}{quote_plus(target)}"
+    LOGGER.info(f"Fetching OTT via {worker_url}")
+
     try:
-        parsed = urlparse(target_url)
-        if not parsed.scheme or not parsed.netloc:
-            return None, "Invalid URL format."
+        resp = await _sync_to_async(requests.get, worker_url, timeout=15)
     except Exception:
-        return None, "Invalid URL format."
-
-    worker_url = f"{base}{quote_plus(target_url)}"
-    LOGGER.info(f"Fetching OTT poster from [{provider}] via {worker_url}")
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
-    
-    try:
-        resp = await _sync_to_async(
-            requests.get, worker_url, headers=headers, timeout=OTT_TIMEOUT
-        )
-    except Exception as e:
-        LOGGER.error(f"OTT request failed: {e}", exc_info=True)
-        return None, "Failed to reach poster service."
+        return None, "Worker request failed."
 
     if resp.status_code != 200:
-        LOGGER.error(f"Worker returned status {resp.status_code}: {resp.text[:200]}")
-        return None, f"Poster service error (HTTP {resp.status_code})"
+        return None, f"Worker error {resp.status_code}"
 
     try:
         data = resp.json()
-    except json.JSONDecodeError as e:
-        LOGGER.error(f"JSON parse error: {e}")
-        return None, "Invalid response from poster service."
+    except Exception:
+        return None, "Invalid JSON response."
 
-    info = _normalize_ott_json(provider, data)
-    if not info:
-        return None, "Could not parse poster info."
-
-    return info, None
+    return _normalize_ott_json(provider, data), None
