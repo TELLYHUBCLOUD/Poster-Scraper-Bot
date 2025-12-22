@@ -22,6 +22,11 @@ def _sexy(name):
         "hubcloud": "HubCloud",
         "hubdrive": "HubDrive",
         "transfer_it": "Transfer.it",
+        "custom_hubcdn": "HubCDN",
+        "custom_driveleech": "DriveLeech",
+        "custom_extralink": "ExtraLink",
+        "custom_luxdrive": "LuxDrive",
+        "custom_pixeldrain": "Pixeldrain",
     }
     return mapping.get(name, name.title())
 

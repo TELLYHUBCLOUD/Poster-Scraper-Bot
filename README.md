@@ -9,6 +9,11 @@ Powerful telegram bot that scrape Posters from multiple OTT platforms & Bypass d
 - Hubdrive
 - Hubcloud
 - Transfer.it
+- HubCDN
+- DriveLeech
+- ExtraLink
+- LuxDrive
+- Pixeldrain
 
 </details>
 
@@ -54,6 +59,11 @@ Powerful telegram bot that scrape Posters from multiple OTT platforms & Bypass d
 /hubcloud - Bypass HubCloud links to direct links
 /hubdrive - Bypass Hubdrive links to direct links
 /transfer_it - Bypass Transfer.it links to direct links
+/hubcdn - Bypass HubCDN links
+/driveleech - Bypass DriveLeech links
+/extralink - Bypass ExtraLink links
+/luxdrive - Bypass LuxDrive links
+/pixeldrain - Bypass Pixeldrain links
 /overlap - Overlay a logo on a poster
 /prime - Prime Video poster
 /netflix - Netflix poster

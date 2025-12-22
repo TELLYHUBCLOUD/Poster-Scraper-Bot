@@ -16,6 +16,11 @@ class echo(object):
 /hubcloud - Bypass HubCloud links
 /hubdrive - Bypass Hubdrive links
 /transfer_it - Bypass Transfer.it links
+/hubcdn - Bypass HubCDN links
+/driveleech - Bypass DriveLeech links
+/extralink - Bypass ExtraLink links
+/luxdrive - Bypass LuxDrive links
+/pixeldrain - Bypass Pixeldrain links
 /prime - Prime Video poster
 /zee5 - ZEE5 poster
 /appletv - Apple TV+ poster
