@@ -241,80 +241,49 @@ class GofileBypass(EchoBypass):
             
         return self._norm(data)
 
-        # Gofile worker logic
+    def _norm(self, data):
+        # Handle Gofile Worker Response
         if isinstance(data, dict):
-            # Log keys for debugging if needed (remove in prod if verbose)
+            # Log keys for debugging
             LOGGER.info(f"[{self.key}] Response Keys: {list(data.keys())}")
-
-            if "download_url" in data:
-                 return {
-                    "title": data.get("filename") or "Gofile",
-                    "filesize": "N/A",
-                    "format": "N/A",
-                    "links": {"Direct Link": data["download_url"]},
-                    "service": self.key
-                }, None
             
-            # Check for generic 'url' key
-            if "url" in data and isinstance(data["url"], str):
-                 return {
-                    "title": data.get("filename") or "Gofile",
-                    "filesize": "N/A",
-                    "format": "N/A",
-                    "links": {"Direct Link": data["url"]},
-                    "service": self.key
-                }, None
-
-            # Check for 'files' list (user provided structure)
-            if "files" in data and isinstance(data["files"], list) and data["files"]:
-                first_file = data["files"][0]
+            # 1. Check for 'files' list (Priority as per user sample)
+            files_list = data.get("files")
+            # Fallback: check nested 'data' or 'result' for 'files'
+            if not files_list:
+                nested = data.get("data") or data.get("result")
+                if isinstance(nested, dict):
+                    files_list = nested.get("files")
+            
+            if files_list and isinstance(files_list, list) and len(files_list) > 0:
+                first_file = files_list[0]
                 if isinstance(first_file, dict):
                     return {
                         "title": first_file.get("name") or "Gofile",
-                        "filesize": "N/A", # Size not provided in sample
+                        "filesize": "N/A",
                         "format": "N/A",
                         "links": {"Direct Link": first_file.get("link")},
                         "service": self.key
                     }, None
 
-            # Handle nested data if present
-            root = data.get("data") or data.get("result") or data
-            if isinstance(root, dict):
-                 url = root.get("url") or root.get("link") or root.get("downloadPage") or root.get("directLink")
-                 if url:
-                    return {
-                        "title": root.get("title") or "Gofile",
-                        "filesize": "N/A",
-                        "format": "N/A",
-                        "links": {"Direct Link": url},
-                        "service": self.key
-                    }, None
-        
-        LOGGER.error(f"[{self.key}] Gofile parsing failed. Data: {str(data)[:200]}")
-        return super()._norm(data)
-
-    def _norm(self, data):
-        # Handle Gofile Worker Response
-        # Expected: { "result": { "downloadPage": ..., "files": [...] } } or similar
-        # Fallback to standard check
-        
-        if isinstance(data, dict):
-            # Check for direct download link structure
-            if "download_url" in data:
+            # 2. Check for generic 'url' or 'download_url'
+            direct_url = data.get("url") or data.get("download_url") or data.get("directLink")
+            if not direct_url:
+                 # Check nested
+                 nested = data.get("data") or data.get("result")
+                 if isinstance(nested, dict):
+                     direct_url = nested.get("url") or nested.get("link") or nested.get("downloadPage") or nested.get("directLink")
+            
+            if direct_url:
                  return {
                     "title": data.get("filename") or "Gofile",
                     "filesize": "N/A",
                     "format": "N/A",
-                    "links": {"Direct Link": data["download_url"]},
+                    "links": {"Direct Link": direct_url},
                     "service": self.key
                 }, None
-            
-            # Check for worker response wrapper
-            if "data" in data and isinstance(data["data"], dict):
-                data = data["data"]
-            elif "result" in data and isinstance(data["result"], dict):
-                data = data["result"]
-                
+
+        # Fallback to parent normalization
         return super()._norm(data)
         
 def _xlnk(root):
