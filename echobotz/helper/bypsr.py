@@ -180,8 +180,8 @@ class TeraboxBypass(EchoBypass):
                            if url: links_clean[str(lbl)] = url
 
         meta = root.get("metadata", {}) if isinstance(root.get("metadata"), dict) else {}
-        title = root.get("title") or meta.get("file_name") or meta.get("title") or "N/A"
-        filesize = root.get("filesize") or meta.get("size") or meta.get("filesize") or "N/A"
+        title = root.get("title") or root.get("filename") or meta.get("file_name") or meta.get("title") or "N/A"
+        filesize = root.get("filesize") or root.get("size") or meta.get("size") or meta.get("filesize") or "N/A"
         
         # Always use Pack Mode (Buttons) for Terabox as requested
         if len(links_clean) > 0:
@@ -241,9 +241,11 @@ class GofileBypass(EchoBypass):
             
         return self._norm(data)
 
-    def _norm(self, data):
         # Gofile worker logic
         if isinstance(data, dict):
+            # Log keys for debugging if needed (remove in prod if verbose)
+            LOGGER.info(f"[{self.key}] Response Keys: {list(data.keys())}")
+
             if "download_url" in data:
                  return {
                     "title": data.get("filename") or "Gofile",
@@ -253,10 +255,20 @@ class GofileBypass(EchoBypass):
                     "service": self.key
                 }, None
             
+            # Check for generic 'url' key (user provided response structure)
+            if "url" in data and isinstance(data["url"], str):
+                 return {
+                    "title": data.get("filename") or "Gofile",
+                    "filesize": "N/A",
+                    "format": "N/A",
+                    "links": {"Direct Link": data["url"]},
+                    "service": self.key
+                }, None
+
             # Handle nested data if present
             root = data.get("data") or data.get("result") or data
             if isinstance(root, dict):
-                 url = root.get("url") or root.get("link") or root.get("downloadPage")
+                 url = root.get("url") or root.get("link") or root.get("downloadPage") or root.get("directLink")
                  if url:
                     return {
                         "title": root.get("title") or "Gofile",
@@ -265,7 +277,8 @@ class GofileBypass(EchoBypass):
                         "links": {"Direct Link": url},
                         "service": self.key
                     }, None
-
+        
+        LOGGER.error(f"[{self.key}] Gofile parsing failed. Data: {str(data)[:200]}")
         return super()._norm(data)
 
     def _norm(self, data):
@@ -390,6 +403,16 @@ def _bysrv(cmd):
     return EchoByRegistry.get(CMD_TO_KEY.get(str(cmd).lower().lstrip("/")))
 
 async def _bpinfo(cmd_name, target_url):
+    # Smart Routing: if generic 'bypass' command is used, detect specific domains
+    # and route to their optimized workers if available.
+    if cmd_name in ["bypass", "bp"]:
+        if "gofile.io" in target_url:
+            cmd_name = "gofile"
+            LOGGER.info("Smart Routing: /bypass detected Gofile link -> switching to gofile worker")
+        elif "terabox" in target_url or "nephobox" in target_url or "4funbox" in target_url:
+            cmd_name = "terabox"
+            LOGGER.info("Smart Routing: /bypass detected Terabox link -> switching to terabox worker")
+
     srv = _bysrv(cmd_name)
     if not srv:
         return None, "Unknown platform."
