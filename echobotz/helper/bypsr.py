@@ -143,11 +143,13 @@ class TeraboxBypass(EchoBypass):
         return await super().fetch(url)
     
     def _norm(self, data):
-        # Terabox API returns 'api' keys or 'streamapi'
         root = data
         links_clean = {}
         
-        # Check for 'api' keys
+        # Logic from user's provided code for Terabox/Bypass
+        if root.get("url") and isinstance(root["url"], str):
+             links_clean["Direct Link"] = root["url"]
+        
         for k, v in root.items():
             if k.startswith("api") and isinstance(v, dict):
                 for subk, subv in v.items():
@@ -162,20 +164,27 @@ class TeraboxBypass(EchoBypass):
                          label = f"StreamAPI - {subk.upper()}"
                          links_clean[label] = subv
 
-        if not links_clean and root.get("url"):
-            links_clean["Direct Link"] = root["url"]
-
+        # Fallback to standard parsing if specific logic yields nothing
         if not links_clean:
-             # Fallback to super norm if standard structure
-             return super()._norm(data)
+             # Standard "links" or "files" checking
+             raw_links = root.get("links") or root.get("files")
+             if isinstance(raw_links, dict):
+                 for k, v in raw_links.items():
+                     if isinstance(v, str) and v.startswith(("http", "https")):
+                         links_clean[str(k).title()] = v
+             elif isinstance(raw_links, list):
+                  for item in raw_links:
+                      if isinstance(item, dict):
+                           lbl = item.get("type") or item.get("tag") or "Link"
+                           url = item.get("url") or item.get("link")
+                           if url: links_clean[str(lbl)] = url
 
-        # Extract metadata
         meta = root.get("metadata", {}) if isinstance(root.get("metadata"), dict) else {}
         title = root.get("title") or meta.get("file_name") or meta.get("title") or "N/A"
         filesize = root.get("filesize") or meta.get("size") or meta.get("filesize") or "N/A"
         
-        if len(links_clean) > 8:
-            # Convert to hc_pack format for pagination
+        # Always use Pack Mode (Buttons) for Terabox as requested
+        if len(links_clean) > 0:
             pack_results = []
             for k, v in links_clean.items():
                 pack_results.append({
@@ -207,9 +216,8 @@ class GofileBypass(EchoBypass):
              return None, "Invalid Gofile URL. Expected gofile.io/d/ID"
         gid = match.group(1)
         
-        # New API endpoint structure as per user request to 'change id'
-        # Assuming the worker simply takes the ID
-        api_url = f"{self.endpoint}?id={gid}" 
+        # User confirmed base + ID
+        api_url = f"{self.endpoint}/{gid}"
         LOGGER.info(f"[{self.key}] API URL: {api_url}")
         
         try:
@@ -232,6 +240,33 @@ class GofileBypass(EchoBypass):
             return None, "Invalid JSON response."
             
         return self._norm(data)
+
+    def _norm(self, data):
+        # Gofile worker logic
+        if isinstance(data, dict):
+            if "download_url" in data:
+                 return {
+                    "title": data.get("filename") or "Gofile",
+                    "filesize": "N/A",
+                    "format": "N/A",
+                    "links": {"Direct Link": data["download_url"]},
+                    "service": self.key
+                }, None
+            
+            # Handle nested data if present
+            root = data.get("data") or data.get("result") or data
+            if isinstance(root, dict):
+                 url = root.get("url") or root.get("link") or root.get("downloadPage")
+                 if url:
+                    return {
+                        "title": root.get("title") or "Gofile",
+                        "filesize": "N/A",
+                        "format": "N/A",
+                        "links": {"Direct Link": url},
+                        "service": self.key
+                    }, None
+
+        return super()._norm(data)
 
     def _norm(self, data):
         # Handle Gofile Worker Response
@@ -322,7 +357,7 @@ EchoByRegistry = {
     # New additions
     "terabox": TeraboxBypass("terabox", "https://true-link-vercel-api.vercel.app/api/terabox/api?url="),
     "gofile": GofileBypass("gofile", "https://gofile.dd-bypassed.workers.dev/api"), # Updated logic
-    "bypass": EchoBypass("bypass", "https://true-link-vercel-api.vercel.app/api/bypass?url="), # Revert to proper EchoBypass for generic
+    "bypass": TeraboxBypass("bypass", "https://true-link-vercel-api.vercel.app/api/bypass?url="), # Reusing Terabox logic for generic bypass
 }
 
 CMD_TO_KEY = {
