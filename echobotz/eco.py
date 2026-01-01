@@ -60,6 +60,6 @@ class echo(object):
     ST_BTN = "Repo"
     REPO = "https://github.com/XalFH/Poster-Scraper-Bot"
     UP_BTN = "Updates"
-    UPDTE = "https://t.me/EchoBotz"
+    UPDTE = "https://t.me/TellYcloudBots"
     SP_BTN = "Support Group"
-    SP_GR = "https://t.me/NxTalks"
+    SP_GR = "https://t.me/TellYcloudBots"
