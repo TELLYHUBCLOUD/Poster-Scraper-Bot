@@ -174,6 +174,24 @@ class TeraboxBypass(EchoBypass):
         title = root.get("title") or meta.get("file_name") or meta.get("title") or "N/A"
         filesize = root.get("filesize") or meta.get("size") or meta.get("filesize") or "N/A"
         
+        if len(links_clean) > 8:
+            # Convert to hc_pack format for pagination
+            pack_results = []
+            for k, v in links_clean.items():
+                pack_results.append({
+                    "file_name": str(k),
+                    "link": str(v),
+                    "file_size": "N/A"
+                })
+            
+            return {
+                "hc_pack": True,
+                "hc_pack_results": pack_results,
+                "total_files": len(pack_results),
+                "service": self.key,
+                "title": str(title)
+            }, None
+
         return {
             "title": str(title),
             "filesize": str(filesize),
@@ -189,8 +207,9 @@ class GofileBypass(EchoBypass):
              return None, "Invalid Gofile URL. Expected gofile.io/d/ID"
         gid = match.group(1)
         
-        # Construct API URL manually
-        api_url = f"{self.endpoint}/{gid}"
+        # New API endpoint structure as per user request to 'change id'
+        # Assuming the worker simply takes the ID
+        api_url = f"{self.endpoint}?id={gid}" 
         LOGGER.info(f"[{self.key}] API URL: {api_url}")
         
         try:
@@ -212,7 +231,31 @@ class GofileBypass(EchoBypass):
         except:
             return None, "Invalid JSON response."
             
-        return self.norm(data)
+        return self._norm(data)
+
+    def _norm(self, data):
+        # Handle Gofile Worker Response
+        # Expected: { "result": { "downloadPage": ..., "files": [...] } } or similar
+        # Fallback to standard check
+        
+        if isinstance(data, dict):
+            # Check for direct download link structure
+            if "download_url" in data:
+                 return {
+                    "title": data.get("filename") or "Gofile",
+                    "filesize": "N/A",
+                    "format": "N/A",
+                    "links": {"Direct Link": data["download_url"]},
+                    "service": self.key
+                }, None
+            
+            # Check for worker response wrapper
+            if "data" in data and isinstance(data["data"], dict):
+                data = data["data"]
+            elif "result" in data and isinstance(data["result"], dict):
+                data = data["result"]
+                
+        return super()._norm(data)
         
 def _xlnk(root):
     out = {}
@@ -278,8 +321,8 @@ EchoByRegistry = {
     "transfer_it": EchoBypass("transfer_it", "https://transfer-it-henna.vercel.app/post", method="POST"),
     # New additions
     "terabox": TeraboxBypass("terabox", "https://true-link-vercel-api.vercel.app/api/terabox/api?url="),
-    "gofile": GofileBypass("gofile", "https://gofile.dd-bypassed.workers.dev/api"),
-    "bypass": TeraboxBypass("bypass", "https://true-link-vercel-api.vercel.app/api/bypass?url="), # Reusing Terabox logic as it handles similar structure
+    "gofile": GofileBypass("gofile", "https://gofile.dd-bypassed.workers.dev/api"), # Updated logic
+    "bypass": EchoBypass("bypass", "https://true-link-vercel-api.vercel.app/api/bypass?url="), # Revert to proper EchoBypass for generic
 }
 
 CMD_TO_KEY = {
