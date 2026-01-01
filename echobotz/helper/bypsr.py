@@ -255,7 +255,7 @@ class GofileBypass(EchoBypass):
                     "service": self.key
                 }, None
             
-            # Check for generic 'url' key (user provided response structure)
+            # Check for generic 'url' key
             if "url" in data and isinstance(data["url"], str):
                  return {
                     "title": data.get("filename") or "Gofile",
@@ -264,6 +264,18 @@ class GofileBypass(EchoBypass):
                     "links": {"Direct Link": data["url"]},
                     "service": self.key
                 }, None
+
+            # Check for 'files' list (user provided structure)
+            if "files" in data and isinstance(data["files"], list) and data["files"]:
+                first_file = data["files"][0]
+                if isinstance(first_file, dict):
+                    return {
+                        "title": first_file.get("name") or "Gofile",
+                        "filesize": "N/A", # Size not provided in sample
+                        "format": "N/A",
+                        "links": {"Direct Link": first_file.get("link")},
+                        "service": self.key
+                    }, None
 
             # Handle nested data if present
             root = data.get("data") or data.get("result") or data
