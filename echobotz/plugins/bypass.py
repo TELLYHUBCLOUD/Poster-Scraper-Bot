@@ -31,6 +31,9 @@ def _sexy(name):
         "nexdrive": "NexDrive",
         "hblinks": "HBLinks",
         "vegamovies": "Vegamovies",
+        "terabox": "Terabox",
+        "gofile": "Gofile",
+        "bypass": "Generic Bypass",
     }
     return mapping.get(name, name.title())
 

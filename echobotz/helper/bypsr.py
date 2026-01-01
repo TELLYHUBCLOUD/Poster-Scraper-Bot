@@ -1,3 +1,5 @@
+import re
+import json
 from urllib.parse import urlparse, quote_plus
 import requests
 
@@ -126,6 +128,91 @@ class EchoBypass:
             "links": links,
             "service": self.key
         }, None
+
+class TeraboxBypass(EchoBypass):
+    async def fetch(self, url):
+        domains = [
+            "1024terabox.com", "teraboxapp.com", "terabox.app", 
+            "nephobox.com", "4funbox.com", "mirrobox.com", 
+            "momerybox.com", "terabox.fun"
+        ]
+        for dom in domains:
+            if dom in url:
+                url = url.replace(dom, "terabox.com")
+                break
+        return await super().fetch(url)
+    
+    def _norm(self, data):
+        # Terabox API returns 'api' keys or 'streamapi'
+        root = data
+        links_clean = {}
+        
+        # Check for 'api' keys
+        for k, v in root.items():
+            if k.startswith("api") and isinstance(v, dict):
+                for subk, subv in v.items():
+                    if isinstance(subv, str) and subv.startswith(("http", "https")):
+                         label = f"{k.upper()} - {subk.upper()}"
+                         links_clean[label] = subv
+        
+        if "streamapi" in root and isinstance(root["streamapi"], dict):
+             v = root["streamapi"]
+             for subk, subv in v.items():
+                    if isinstance(subv, str) and subv.startswith(("http", "https")):
+                         label = f"StreamAPI - {subk.upper()}"
+                         links_clean[label] = subv
+
+        if not links_clean and root.get("url"):
+            links_clean["Direct Link"] = root["url"]
+
+        if not links_clean:
+             # Fallback to super norm if standard structure
+             return super()._norm(data)
+
+        # Extract metadata
+        meta = root.get("metadata", {}) if isinstance(root.get("metadata"), dict) else {}
+        title = root.get("title") or meta.get("file_name") or meta.get("title") or "N/A"
+        filesize = root.get("filesize") or meta.get("size") or meta.get("filesize") or "N/A"
+        
+        return {
+            "title": str(title),
+            "filesize": str(filesize),
+            "format": "N/A",
+            "links": links_clean,
+            "service": self.key
+        }, None
+
+class GofileBypass(EchoBypass):
+    async def fetch(self, url):
+        match = re.search(r"gofile\.io/d/([a-zA-Z0-9_-]+)", url)
+        if not match:
+             return None, "Invalid Gofile URL. Expected gofile.io/d/ID"
+        gid = match.group(1)
+        
+        # Construct API URL manually
+        api_url = f"{self.endpoint}/{gid}"
+        LOGGER.info(f"[{self.key}] API URL: {api_url}")
+        
+        try:
+             resp = await _sync_to_async(
+                requests.get,
+                api_url,
+                timeout=30
+            )
+             LOGGER.info(f"[{self.key}] Status Code: {resp.status_code}")
+        except Exception as e:
+            LOGGER.error(f"[{self.key}] HTTP error: {e}", exc_info=True)
+            return None, "Failed to reach bypass service."
+
+        if resp.status_code != 200:
+             return None, f"Bypass service error {resp.status_code}"
+
+        try:
+            data = resp.json()
+        except:
+            return None, "Invalid JSON response."
+            
+        return self.norm(data)
         
 def _xlnk(root):
     out = {}
@@ -189,6 +276,10 @@ EchoByRegistry = {
     "vegamovies": EchoBypass("vegamovies", "https://pbx1botsapi2.vercel.app/api/vega?url="),
     # By: NickUpdates
     "transfer_it": EchoBypass("transfer_it", "https://transfer-it-henna.vercel.app/post", method="POST"),
+    # New additions
+    "terabox": TeraboxBypass("terabox", "https://true-link-vercel-api.vercel.app/api/terabox/api?url="),
+    "gofile": GofileBypass("gofile", "https://gofile.dd-bypassed.workers.dev/api"),
+    "bypass": TeraboxBypass("bypass", "https://true-link-vercel-api.vercel.app/api/bypass?url="), # Reusing Terabox logic as it handles similar structure
 }
 
 CMD_TO_KEY = {
@@ -210,6 +301,9 @@ CMD_TO_KEY = {
         "transfer_it": ["transfer_it", "ti"],
         "hblinks": ["hblinks", "hbl"],
         "vegamovies": ["vegamovies", "vega"],
+        "terabox": ["terabox", "tb", "tf"],
+        "gofile": ["gofile", "go", "gf"],
+        "bypass": ["bypass", "bp"],
     }.items()
     for a in v
 }
