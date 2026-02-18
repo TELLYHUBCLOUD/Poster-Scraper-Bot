@@ -146,7 +146,7 @@ Powerful telegram bot that scrape Posters from multiple OTT platforms & Bypass d
 <details>
   <summary><strong>Heroku (One-Click Deploy)</strong></summary>
 
-[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/XalFH/Poster-Scraper-Bot)
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/ImKrishana/Poster-Scraper-Bot)
 
 </details>
 
@@ -154,7 +154,7 @@ Powerful telegram bot that scrape Posters from multiple OTT platforms & Bypass d
   <summary><strong>Render (One-Click Deploy)</strong></summary>
   
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](
-https://render.com/deploy?repo=https://github.com/XalFH/Poster-Scraper-Bot&branch=deploy
+https://render.com/deploy?repo=https://github.com/ImKrishana/Poster-Scraper-Bot&branch=deploy
 )
 
 </details>
@@ -171,7 +171,7 @@ Before starting, ensure you have:
 
 1. **Clone the Repository**
    ```bash
-   git clone https://github.com/XalFH/Poster-Scraper-Bot psb
+   git clone https://github.com/ImKrishana/Poster-Scraper-Bot psb
    cd psb
    ```
 
@@ -247,7 +247,7 @@ docker-compose down -v
 
 2. **Clone Repository & switch to deploy branch**
    ```bash
-   git clone https://github.com/XalFH/Poster-Scraper-Bot psb && cd psb && git checkout deploy
+   git clone https://github.com/ImKrishana/Poster-Scraper-Bot psb && cd psb && git checkout deploy
    ```
 
 3. **Create config.env file**
@@ -261,7 +261,7 @@ docker-compose down -v
    BOT_TOKEN=your_bot_token
    DATABASE_URL=your_database_url
    OWNER_ID=your_owner_id
-   UPSTREAM_REPO=https://github.com/XalFH/Poster-Scraper-Bot
+   UPSTREAM_REPO=https://github.com/ImKrishana/Poster-Scraper-Bot
    UPSTREAM_BRANCH=main
    ```
 
@@ -418,7 +418,7 @@ This bot is developed strictly for **educational and research purposes only**.
 
 ---
 
-[![License](https://img.shields.io/github/license/XalFH/Poster-Scraper-Bot)](https://github.com/XalFH/Poster-Scraper-Bot/blob/main/LICENSE)
+[![License](https://img.shields.io/github/license/ImKrishana/Poster-Scraper-Bot)](https://github.com/ImKrishana/Poster-Scraper-Bot/blob/main/LICENSE)
 [![Telegram](https://img.shields.io/badge/Telegram-26A5E4?logo=telegram&logoColor=white)](https://t.me/NxMirror)
 
 If you like this project, don't forget to give it a Star !
